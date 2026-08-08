@@ -1,0 +1,19 @@
+# Streamlit theme sample (project-wide)
+# This affects colors and font family across all pages.
+# Note: Font sizes are not controlled by theme; we standardized heading hierarchy in Print_Envelopes_Test.py.
+
+[theme]
+# Primary accent color for buttons, sliders, etc.
+primaryColor = "#DA9894"          # Indigo-600
+
+# App background colors
+backgroundColor = "#FFEFE8"       # Slate-50 (very light)
+secondaryBackgroundColor = "#FFFFFF"  # White cards/sections
+
+# Base text color
+textColor = "#3f0101ff"             # Slate-900 (dark)
+
+# Global font family
+font = "sans serif"               # Options: "sans serif", "serif", "monospace"
+
+# Restart Streamlit or force a rerun for changes to take effect.

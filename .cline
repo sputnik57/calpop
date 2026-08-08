@@ -1,0 +1,5 @@
+{
+  "maxAnalysisSteps": 3,
+  "fallbackAction": "emitTodoList",
+  "logging": "verbose"
+}

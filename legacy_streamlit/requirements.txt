@@ -1,0 +1,11 @@
+streamlit
+datetime
+pandas
+openai
+chromadb  # if you're planning semantic search
+python-docx==0.8.11
+PyPDF2==3.0.1
+reportlab==3.6.13
+pytz
+opencv-python==4.7.0.72
+google-cloud-vision

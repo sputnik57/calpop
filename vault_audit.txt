@@ -1,0 +1,6 @@
+Total Rows: 16
+Columns: ['Count', 'Stage', 'fName', 'lName', 'Unsafe?', 'CDCRno', 'housing', 'address', 'city', 'state', 'zip', 'Prison', 'CDCR db verif', 'contract', 'Date of contract', 'Needs Green book?', 'language', 'Review notes', 'Sponsor', 'Date Sponsor assigned', 'CPID', 'letter exchange (received only)', 'Step (received only)', 'BPH DATE']
+
+--- X99999 NOT FOUND IN CDCRno COLUMN ---
+
+--- X99999 NOT FOUND IN CPID/CODE EITHER ---
