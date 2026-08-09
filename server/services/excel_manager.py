@@ -226,6 +226,7 @@ class ExcelMapManager:
                     'housing': clean('housing'),
                     'facility': facility,
                     'safety_classification': safety_classification,
+                    'sponsor_name': clean('Sponsor'),
                 }
 
             return None
@@ -387,6 +388,10 @@ class ExcelMapManager:
             'zip': field('zip'),
             'cdcr_number': field('CDCRno'),
             'safety_classification': safety_classification,
+            # Authoritative sponsor assignment, straight from the roster.
+            # "Course" (project owner's sentinel, not a real name) and blank
+            # both mean "no external sponsor" for Envelope Mgt routing.
+            'sponsor_name': field('Sponsor'),
         }
 
     def diff_with_postgres_prisoners(self, db: Session) -> Dict[str, Any]:

@@ -50,6 +50,12 @@ class LetterScanIngest(BaseModel):
     image_data: str = Field(..., description="Base64 encoded image data string")
     prisoner_cpid: Optional[str] = Field(None, description="Prisoner CPID if known, otherwise system tries to detect or assigns default")
     filename: str = "webcam_capture.jpg"
+    date_picked_up_po: Optional[datetime] = Field(
+        None, description="Manually entered: when staff physically picked this up from the PO box (distinct from the postmark date)."
+    )
+    routing_status_override: Optional[str] = Field(
+        None, description="'queued_for_writing' or 'queued_for_letter_scan' -- required if the prisoner's Sponsor value is ambiguous (see 409 response from a first attempt without this)."
+    )
 
 
 class LetterUpdate(BaseModel):

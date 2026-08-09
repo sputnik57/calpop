@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from config import get_settings
 from core.letter_db import LetterDatabase
 from services.excel_manager import ExcelMapManager
+from schemas.prisoner import PrisonerCreate
 from auth.dependencies import require_admin, require_admin_or_sponsor
 from auth.middleware import SessionMiddleware
 from auth.router import router as auth_router
@@ -261,6 +262,60 @@ def get_excel_status(user=Depends(require_admin)):
     """Get status of loaded Excel data."""
     return excel_manager.get_summary()
 
+@app.post("/api/prisoners")
+def create_prisoner(payload: PrisonerCreate, user=Depends(require_admin)):
+    """
+    Envelope Mgt's not-found branch: a person who wrote in isn't in the
+    roster at all yet. Generates a CPID server-side (random, not derived
+    from name/CDCR# -- the legacy core/letter_db.py generator that did that
+    has a bug where it can only ever produce 2 real letters from 2 initials,
+    padded with 'X', which doesn't match the real CPIDs already in the
+    roster) and creates the Prisoner record with whatever PII is known.
+    """
+    from db.models import Prisoner
+    import random
+
+    db = SessionLocal()
+    try:
+        letters_pool = "ABCDEFGHJKLMNPQRSTUVWXYZ"  # no I/O -- avoid confusion with 1/0
+        digits_pool = "23456789"  # no 0/1 -- avoid confusion with O/I
+        cpid = None
+        for _ in range(100):
+            candidate = "".join(random.choices(letters_pool, k=3)) + "".join(random.choices(digits_pool, k=3))
+            if not db.query(Prisoner).filter(Prisoner.cpid == candidate).first():
+                cpid = candidate
+                break
+        if not cpid:
+            raise HTTPException(status_code=500, detail="Could not generate a unique CPID")
+
+        prisoner = Prisoner(cpid=cpid, **payload.dict())
+        db.add(prisoner)
+        db.commit()
+        db.refresh(prisoner)
+
+        return {
+            "cpid": prisoner.cpid,
+            "first_name": prisoner.first_name,
+            "last_name": prisoner.last_name,
+            "cdcr_number": prisoner.cdcr_number,
+            "facility": prisoner.facility,
+            "housing": prisoner.housing,
+            "address": prisoner.address,
+            "city": prisoner.city,
+            "state": prisoner.state,
+            "zip": prisoner.zip,
+            "safety_classification": prisoner.safety_classification,
+            "sponsor_name": prisoner.sponsor_name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
 @app.get("/api/prisoners")
 def list_prisoners(user=Depends(require_admin)):
     """
@@ -269,11 +324,21 @@ def list_prisoners(user=Depends(require_admin)):
     registered before /api/prisoners/{cpid} or FastAPI would match this
     path as cpid="export" etc. (route order matters, not just specificity).
     """
-    from db.models import Prisoner
+    from db.models import Prisoner, Letter
+    from sqlalchemy import func
 
     db = SessionLocal()
     try:
         prisoners = db.query(Prisoner).order_by(Prisoner.cpid).all()
+
+        # Computed, not stored -- always accurate, can't drift out of sync
+        # the way a manually-incremented counter could (see implementation_plan.md).
+        counts = dict(
+            db.query(Letter.prisoner_cpid, func.count(Letter.id))
+            .group_by(Letter.prisoner_cpid)
+            .all()
+        )
+
         return [
             {
                 "cpid": p.cpid,
@@ -287,6 +352,8 @@ def list_prisoners(user=Depends(require_admin)):
                 "state": p.state,
                 "zip": p.zip,
                 "safety_classification": p.safety_classification,
+                "sponsor_name": p.sponsor_name,
+                "letters_received_count": counts.get(p.cpid, 0),
             }
             for p in prisoners
         ]
@@ -323,6 +390,7 @@ def export_prisoners_excel(user=Depends(require_admin)):
                 "state": p.state,
                 "zip": p.zip,
                 "Unsafe?": "Y" if (p.safety_classification or "").strip().lower() == "unsafe" else "",
+                "Sponsor": p.sponsor_name,
             }
             for p in prisoners
         ]

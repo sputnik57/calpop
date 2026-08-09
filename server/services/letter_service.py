@@ -22,6 +22,91 @@ from schemas.letter import (
 )
 
 
+class AmbiguousSponsorRoutingError(Exception):
+    """
+    Raised when a prisoner's Sponsor value can't be confidently classified
+    (see classify_sponsor_name) and no routing_status_override was supplied.
+    Carries the raw value so the API layer can surface it to the operator.
+    """
+
+    def __init__(self, raw_sponsor_name: Optional[str]):
+        self.raw_sponsor_name = raw_sponsor_name
+        super().__init__(f"Ambiguous sponsor value, needs a human decision: {raw_sponsor_name!r}")
+
+
+def classify_sponsor_name(sponsor_name: Optional[str]) -> str:
+    """
+    Classify a roster 'Sponsor' value into one of three buckets, rather than
+    trying to maintain a hardcoded, ever-growing list of every sentinel value
+    the project owner has ever typed into that column:
+
+    - "no_sponsor": blank, or starts with the "Course" sentinel (the project
+      owner handling this one directly, not a real person's name) -> confidently
+      routes to the admin write queue.
+    - "has_sponsor": looks like a real name (title-cased, e.g. "Jane D",
+      "Sam") -> confidently routes to the letter-scan/OneDrive queue.
+    - "ambiguous": doesn't clearly fit either. Real examples already found in
+      the live roster: "DROP", "CANX", "DROP, 26Dec2023" -- short, all-caps
+      status-code-looking tokens, not names. Guessing wrong here either
+      misroutes a letter toward a stale/dropped sponsor's OneDrive, or
+      needlessly delays someone who has a real sponsor -- so this must be a
+      human decision, not a silent default. (Also nudges toward cleaning up
+      the Excel source data, since a query only fires for genuinely unclear
+      entries.)
+    """
+    normalized = (sponsor_name or "").strip()
+    if not normalized:
+        return "no_sponsor"
+    if normalized.lower().startswith("course"):
+        return "no_sponsor"
+
+    first_token = normalized.split(None, 1)[0].rstrip(",;:")
+    if len(first_token) >= 2 and first_token.isalpha() and first_token.isupper():
+        return "ambiguous"
+
+    return "has_sponsor"
+
+
+def resolve_envelope_routing_status(sponsor_name: Optional[str]) -> Optional[str]:
+    """
+    Maps classify_sponsor_name()'s result to the actual Letter.status value.
+    Returns None for "ambiguous" -- the caller must get an explicit human
+    decision (see routing_status_override on create_letter_from_ocr) rather
+    than silently picking a queue.
+    """
+    classification = classify_sponsor_name(sponsor_name)
+    if classification == "no_sponsor":
+        return "queued_for_writing"
+    if classification == "has_sponsor":
+        return "queued_for_letter_scan"
+    return None
+
+
+def extract_postmark_date_guess(ocr_text: str) -> Optional[datetime]:
+    """
+    Best-effort extraction of a postmark date from OCR'd envelope text (e.g.
+    USPS postage-meter stamps typically read like "DEC 26 2023"). Deliberately
+    a guess, not a trusted value -- same discipline as everywhere else OCR is
+    used in this app: it pre-fills a field for a human to confirm or correct,
+    it never gets treated as ground truth on its own.
+    """
+    import re
+
+    month_names = (
+        "JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC"
+    )
+    pattern = rf"\b({month_names})\s+(\d{{1,2}})[,\s]+(\d{{4}})\b"
+    match = re.search(pattern, (ocr_text or "").upper())
+    if not match:
+        return None
+
+    month_str, day_str, year_str = match.groups()
+    try:
+        return datetime.strptime(f"{month_str} {day_str} {year_str}", "%b %d %Y")
+    except ValueError:
+        return None
+
+
 class LetterService:
     def __init__(self, db: Session):
         self.db = db
@@ -59,13 +144,15 @@ class LetterService:
         return self.get_letter(letter.id)
 
     def create_letter_from_ocr(
-        self, 
+        self,
         image_path: str,
-        ocr_text: str, 
-        ocr_confidence: float, 
+        ocr_text: str,
+        ocr_confidence: float,
         ocr_blocks: Dict[str, Any],
-        author_id: int, 
-        prisoner_cpid: Optional[str] = None
+        author_id: int,
+        prisoner_cpid: Optional[str] = None,
+        date_picked_up_po: Optional[datetime] = None,
+        routing_status_override: Optional[str] = None,
     ) -> Letter:
         from globals import excel_manager
         
@@ -117,7 +204,8 @@ class LetterService:
                     cpid=resolved['cpid'],
                     first_name=resolved.get('first_name'),
                     last_name=resolved.get('last_name'),
-                    facility=resolved.get('facility')
+                    facility=resolved.get('facility'),
+                    sponsor_name=resolved.get('sponsor_name'),
                 )
             else:
                 # True Ghost: CPID exists neither in DB nor Excel
@@ -130,6 +218,22 @@ class LetterService:
             self.db.flush()
 
         # 2. Create Letter
+        # Status is the Envelope Mgt routing decision, not a generic "scanned"
+        # label: no real external sponsor (blank / "Course" sentinel / brand
+        # new person) -> admin write queue; a real named sponsor -> the
+        # letter-scan/OneDrive queue built out in Letter Mgt.
+        if routing_status_override:
+            if routing_status_override not in ("queued_for_writing", "queued_for_letter_scan"):
+                raise ValueError(f"Invalid routing_status_override: {routing_status_override!r}")
+            routing_status = routing_status_override
+        else:
+            routing_status = resolve_envelope_routing_status(p.sponsor_name)
+            if routing_status is None:
+                # Ambiguous sponsor value (e.g. "DROP", "CANX") -- refuse to
+                # guess. The caller (api/letters.py) turns this into a 409
+                # asking the operator to explicitly pick a queue.
+                raise AmbiguousSponsorRoutingError(p.sponsor_name)
+
         pacific_now = datetime.now(ZoneInfo("America/Los_Angeles"))
         letter = Letter(
             prisoner_cpid=prisoner_cpid,
@@ -137,7 +241,7 @@ class LetterService:
             title=f"Scan {pacific_now.strftime('%m/%d %H:%M')}",
             intake_source="intake_area",
             original_file_path=image_path,
-            status="scanned",
+            status=routing_status,
             content_format="markdown"
         )
         self.db.add(letter)
@@ -167,8 +271,17 @@ class LetterService:
         # Link latest version ID directly (safer than relationship assignment during flush)
         letter.latest_version_id = version.id
 
-        # 5. Create dates
-        dates = LetterDates(letter_id=letter.id, scanned_at=pacific_now)
+        # 5. Create dates. postmarked_at is a best-effort OCR guess (human
+        # confirms/corrects it later, same discipline as everywhere else OCR
+        # is used here); picked_up_at is always a manual entry -- staff's own
+        # handwritten note of when they physically grabbed it from the PO box,
+        # distinct from the postal service's own postmark.
+        dates = LetterDates(
+            letter_id=letter.id,
+            scanned_at=pacific_now,
+            postmarked_at=extract_postmark_date_guess(ocr_text),
+            picked_up_at=date_picked_up_po,
+        )
         self.db.add(dates)
 
         # 6. Create Assignment (so it shows up in Inbox)

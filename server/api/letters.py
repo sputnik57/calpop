@@ -12,7 +12,7 @@ from auth.dependencies import require_admin, require_admin_or_sponsor
 from auth.models import UserContext
 from config import get_settings
 from schemas.letter import LetterCreate, LetterOut, LetterScanIngest, LetterUpdate
-from services.letter_service import LetterService
+from services.letter_service import LetterService, AmbiguousSponsorRoutingError
 from services.matching_service import MatchingService
 from services.ocr_service import OCRService
 from globals import excel_manager
@@ -90,11 +90,26 @@ def ingest_scanned_letter(
             ocr_confidence=confidence,
             ocr_blocks=blocks,
             author_id=auth_id,
-            prisoner_cpid=payload.prisoner_cpid
+            prisoner_cpid=payload.prisoner_cpid,
+            date_picked_up_po=payload.date_picked_up_po,
+            routing_status_override=payload.routing_status_override,
         )
-        
+
         return letter
 
+    except AmbiguousSponsorRoutingError as e:
+        # Deliberately not a 500 -- this isn't a server error, it's "a human
+        # needs to make this call." 409 (conflict) since the request can't
+        # be completed as-is but can succeed if resubmitted with
+        # routing_status_override set.
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Sponsor value is ambiguous, human decision required.",
+                "raw_sponsor_name": e.raw_sponsor_name,
+                "resubmit_with": "routing_status_override: 'queued_for_writing' or 'queued_for_letter_scan'",
+            },
+        )
     except Exception as e:
         print(f"Error processing scan: {e}")
         raise HTTPException(status_code=500, detail=str(e))

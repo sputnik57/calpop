@@ -31,6 +31,8 @@ letter_status_enum = Enum(
     "revisions_requested",
     "approved",
     "archived",
+    "queued_for_writing",
+    "queued_for_letter_scan",
     name="letterstatus",
 )
 
@@ -96,6 +98,12 @@ class Prisoner(Base, TimestampMixin):
     cdcr_number: Mapped[Optional[str]] = mapped_column(EncryptedString)
     housing: Mapped[Optional[str]] = mapped_column(EncryptedString)
     safety_classification: Mapped[Optional[str]] = mapped_column(String(50))
+    # Plaintext (not encrypted) -- deliberately queryable (WHERE sponsor_name !=
+    # 'Course') to route Envelope Mgt's write-queue vs letter-scan-queue decision.
+    # Synced from the roster's authoritative 'Sponsor' Excel column. "Course" is
+    # the project owner's sentinel for "I'm handling this myself, no external
+    # sponsor" -- not a real person's name.
+    sponsor_name: Mapped[Optional[str]] = mapped_column(Text)
 
     letters: Mapped[List["Letter"]] = relationship(back_populates="prisoner")
     assignments: Mapped[List["Assignment"]] = relationship(back_populates="prisoner")
