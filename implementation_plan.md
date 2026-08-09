@@ -6,23 +6,36 @@ This living document mirrors the roadmap defined in **Software_requirements_spec
 
 ## Current Progress Snapshot (07Aug2026)
 
-> **Note on this table's history:** prior versions of this table (12Dec2025) marked Phases 2, 3, 5, 7, 8, and 10 "✅ Completed" while the *Detailed Roadmap* section below them, for the same phases, said "Backend Schema Done." A code audit on 07Aug2026 confirmed the detailed-roadmap language was the accurate one — the summary table had drifted into aspirational status, not a record of what the code actually did. Statuses below are code-verified as of 07Aug2026; phases marked "Unverified" simply haven't been audited yet, not confirmed broken.
+**Icon legend** (added 08Aug2026 — the icons below previously conflated confidence levels that shouldn't be conflated: ✅ was used both for things independently verified live and for things only ever claimed in someone else's handoff note; 🔄 was used both for "actively being worked" and "status genuinely unknown"):
 
-| Phase | Focus | Status | Notes |
-| --- | --- | --- | --- |
-| 0 | Foundation & development environment | ✅ Completed | Repo scaffolding, Docker, Traefik, dev TLS |
-| 1 | Configuration & security scaffolding | ⚠️ Scaffolding only, not functional | `FILE_ENCRYPTION_KEY`/`MAPPING_STORE_KEY` in `.env` are still literal placeholder strings; `core/cipher.py`'s AES-GCM functions are never called anywhere. All PII on disk (scans, PDFs) is plaintext today. |
-| 2 | Authentication, authorization & sessions | ✅ Completed (real MSAL, real RBAC) | Verified: real Azure AD auth-code flow, per-route role checks. **Open item:** Azure AD is a cloud dependency — conflicts with the "eliminate unnecessary internet communication" requirement and requires each deploying org to have a Microsoft tenant. Self-hosted auth is a candidate replacement (see Phase 11). |
-| 3 | Prisoner data layer & Excel integration | ⚠️ Completed but duplicated | Postgres schema + Alembic real. **But:** the Excel-based `ExcelMapManager` ("Secure Vault") is a second, parallel PII store still live in `main.py`/`globals.py`, and it's the *only* place CDCR numbers are tracked — the Postgres `Prisoner` table has no CDCR column at all. A third store, the legacy SQLite `letters.db`, is also still wired in via `core/letter_db.py`. Three overlapping data stores, unreconciled. |
-| 4 | Letter authoring & conversion workflow | ✅ Completed (backend + frontend) | Per 09Jan2026 handoff: editor, autosave (3s debounce), revision-request flow, full lifecycle test coverage in `server/tests/test_submission_workflow.py`. |
-| 5 | OCR & prisoner matching workstation | ✅ Core loop real and tested (07Aug2026) | Local, fully offline OCR via Ollama (`qwen2.5vl:7b`) replaces the old Google Vision default and the old mock stub. Validated against real scans: printed/machine text (postage meter, barcodes) transcribes cleanly; handwritten reply-address blocks are unreliable — one test produced a garbled, undeliverable return address at 0.95 self-reported confidence, and cropping/upscaling did not fix it (the model hallucinated a plausible-sounding but wrong prison name instead). Self-reported confidence is not trustworthy as a QA gate. Fuzzy candidate matching (`MatchingService`, rapidfuzz) + a human-approval candidate list in `ScantronStation.jsx` now replace the old silent auto-CPID-detection — nothing is auto-selected, a person must pick the match. Redaction (Phase 6) is separate and still open. |
-| 6 | Redaction pipeline & scoring gate | 🔄 Unverified | Table previously claimed "Visual redaction active in Scantron" — not independently confirmed in the 07Aug2026 audit. Needs a direct check before trusting this status. |
-| 7 | Assignments & sponsor portal UX | 🔄 Unverified | Same caveat — detailed roadmap section historically said "Backend Schema Done," not "Completed." Needs re-verification. |
-| 8 | Envelope printing & Batch Processing | 🔄 Unverified | Same caveat. Needs re-verification. |
-| 9 | OneDrive sync & reconciliation | 🔄 Unverified | Same caveat. Also worth revisiting given the offline-communication goal — OneDrive sync is itself a cloud dependency; confirm it's actually wanted before building it out further. |
-| 10 | Frontend app build-out | 🔄 Unverified (and UI is being redone regardless) | Project owner has flagged the current UI as not what they want; a frontend pass is planned independent of backend correctness. |
-| 11 | Security hardening & compliance | 🔄 In Progress — punch list below | See "Security & Environment Findings" section. |
-| 12 | Testing, performance & documentation | 🔜 Planned | 4 test files / 318 lines exist (`server/tests/`), covering Letter/Assignment/Submission service logic against in-memory SQLite — no coverage yet for auth, RBAC boundaries, file storage/encryption, or OCR/matching. |
+| Icon | Meaning |
+| --- | --- |
+| ✅ | Completed **and independently verified** — either live-tested against the running app this session, or confirmed by direct code inspection this session. |
+| 📋 | Completed **per inherited documentation only** — carried over from a prior handoff note or status doc, not independently re-checked. Plausible, not confirmed. |
+| ⚠️ | Completed, but with a confirmed caveat or partial gap — verified, and the verification found a real issue. |
+| 🔄 | Actively in progress right now. |
+| ❓ | Unverified — status is genuinely unknown. Not confirmed working, not confirmed broken. |
+| 🔜 | Not started / planned. |
+
+> **Note on this doc's history:** earlier versions had two sections that quietly drifted apart — a summary table claiming phases "Completed" while the *Detailed Roadmap* section below it, for the same phases, said "Backend Schema Done." As of 08Aug2026 that's been restructured on purpose: this table is now just a quick-glance index (one icon, nothing else, so it can't drift into its own opinion), and **Detailed Roadmap** below is the one place status is actually explained. If the two ever disagree again, the detailed section is the one to trust.
+
+Quick index — full explanation for each phase is in **Detailed Roadmap** below, this table is intentionally just the icon:
+
+| Phase | Focus | Status |
+| --- | --- | --- |
+| 0 | Foundation & development environment | ✅ |
+| 1 | Configuration & security scaffolding | ⚠️ |
+| 2 | Authentication, authorization & sessions | ✅ |
+| 3 | Prisoner data layer & Excel integration | ⚠️ |
+| 4 | Letter authoring & conversion workflow | 📋 |
+| 5 | OCR & prisoner matching workstation | ⚠️ |
+| 6 | Redaction pipeline & scoring gate | ❓ |
+| 7 | Assignments & sponsor portal UX | ❓ |
+| 8 | Envelope printing & Batch Processing | ❓ |
+| 9 | OneDrive sync & reconciliation | ❓ |
+| 10 | Frontend app build-out | ❓ |
+| 11 | Security hardening & compliance | 🔄 |
+| 12 | Testing, performance & documentation | 🔜 |
 
 If needed, requirements.txt packages are stored in mamba enviornment named calpop
 
@@ -40,8 +53,9 @@ If needed, requirements.txt packages are stored in mamba enviornment named calpo
 - Moved the frontend off port 3000 (conflicted with an unrelated `sm_post` project on this machine) to port 4000: `client/vite.config.js`, `docker-compose.yml`, `.env`'s `ALLOWED_ORIGINS`, and `client/Dockerfile`'s `EXPOSE` all updated and verified consistent.
 
 **Still open, in rough priority order:**
-1. `get_prisoner_details` (`server/main.py:213`) is gated by `require_admin_or_sponsor`, letting any sponsor pull any prisoner's real name/address by CPID. Per the program's actual model (sponsors work in CPID space; the manager resolves identity to answer/mail letters), this should be `require_admin`-only.
-2. Encryption at rest is unimplemented despite Phase 1 claiming it done: generate real `FILE_ENCRYPTION_KEY`/`MAPPING_STORE_KEY` values and actually call `core/cipher.py`'s AES-GCM functions from the file-writing services (`artifact_service.py`, `envelope_service.py`, `ocr_service.py`) instead of writing plaintext.
+1. ✅ **Done (08Aug2026):** `get_prisoner_details` (`server/main.py:213`) is now `require_admin`-only (was `require_admin_or_sponsor`). `get_prisoner_info` (anonymized) is unchanged. Verified live: endpoint still enforces auth (401 anonymous), and `require_admin`'s role check (`server/auth/dependencies.py`) structurally only accepts `ROLE_ADMIN` — a real sponsor session would get `403`. Not verified with an actual sponsor login (would need a real Azure AD session), so the role-distinction itself is confirmed by code inspection, not an end-to-end test.
+1b. ✅ **Done (08Aug2026), not on the original list — found while starting item 2 below, more severe than anything else on this list:** `app.mount("/api/static/data", StaticFiles(...))` in `server/main.py` served every file under `data/` — including the full prisoner roster (`active_map.xlsx`, real names/CDCR#s/addresses), scanned envelope/letter images, and submission/envelope exports — to **anyone who could reach port 8000, with zero authentication**. Confirmed live with a raw unauthenticated `curl` before fixing (`HTTP 200` on the roster file). Root cause: Starlette's `StaticFiles` mount bypasses FastAPI's route-level `Depends()` auth entirely, so every other route being locked down didn't matter. Fixed with `StaticDataAuthMiddleware`, added *before* `SessionMiddleware` in `main.py` so Starlette's middleware ordering (most-recently-added = outermost = runs first) puts `SessionMiddleware` first, populating `request.state.user`, before the guard checks it. Requires any authenticated session (admin/sponsor/auditor) — not admin-only, since sponsors legitimately need some of these files (their own letter exports, the scan they're responding to) in normal workflow. Verified live with four cases: anonymous → 401, valid admin session → 200, valid sponsor session → 200, tampered/garbage token → 401 (sessions minted directly via `SessionManager` inside the container for testing, not via a real Azure AD login). **Remaining gap, not fixed:** this closes "anyone on the internet," not "a sponsor can only see their own files" — there's no per-resource ownership check, so any authenticated sponsor could still guess/enumerate another sponsor's filenames. That's a finer-grained authorization project, not done here.
+2. Encryption at rest is unimplemented despite Phase 1 claiming it done: generate real `FILE_ENCRYPTION_KEY`/`MAPPING_STORE_KEY` values and actually call `core/cipher.py`'s AES-GCM functions from the file-writing services (`artifact_service.py`, `envelope_service.py`, `ocr_service.py`) instead of writing plaintext. (Not started yet — this is next.)
 3. Azure AD is a cloud login dependency; evaluate a self-hosted auth replacement (also unlocks distributing this tool to other program managers without a Microsoft tenant).
 4. Reconcile the three overlapping prisoner data stores (Postgres `Prisoner`, `ExcelMapManager` vault, legacy SQLite `letters.db`) into one. At minimum, decide where CDCR numbers canonically live — right now it's Excel-only.
 5. Delete confirmed dead code from the original Streamlit carryover: `core/database.py`, `core/ocr.py`, and the now-superseded pre-audit version of `services/matching.py`/`services/vector_db.py` (distinct from the still-used `services/matching_service.py`).
@@ -50,6 +64,12 @@ If needed, requirements.txt packages are stored in mamba enviornment named calpo
    - The GCP service-account key's *value* is still the original from July 2025 — file permissions/gitignore are locked down, but actually invalidating/reissuing the key needs the project owner's Google Cloud Console access.
 7. Verify Phases 6–10's actual status directly (redaction, assignments/sponsor UX, envelope printing, OneDrive sync, frontend) — none of these were re-audited during the 07Aug2026 session; the table above marks them "Unverified," not confirmed broken or working.
 8. Frontend redesign — project owner has said the current UI isn't what they want. Independent of all backend work above; do not block on it.
+9. **Per-resource authorization is missing**, distinct from item 1b's fix. Today's fix closed "anyone unauthenticated" on `/api/static/data`; it did not add ownership checks, so any logged-in sponsor can still reach another sponsor's files by guessing/enumerating filenames. Applies more broadly too — worth auditing whether any other route scopes data by role but not by "is this actually yours."
+10. **PII is leaking into plaintext application logs.** Observed 07Aug2026: a failed Excel→Postgres sync printed a real prisoner's full name, address, and facility straight into Docker's stdout logs. Not fixed. Needs the sync/logging code audited for anywhere row-level data gets logged on error, and switched to logging counts/IDs instead of full record contents.
+11. **Test coverage doesn't cover anything security-relevant.** Existing tests (Phase 12, 318 lines) only exercise Letter/Assignment/Submission service logic. No tests for auth, RBAC boundaries (including today's two fixes), file storage, or OCR/matching.
+12. **Documentation freshness is unverified.** `docs/admin_manual.md`, `docs/sponsor_manual.md`, and `docs/technical_deployment_guide.md` exist but haven't been checked against current reality — same failure mode that let `implementation_plan.md` itself drift before the 07Aug2026 audit.
+13. **No data retention or legal-hold policy exists anywhere in the project.** Nothing defines how long scans, letters, or the roster should be kept, or under what authority. Worth finding out whether the program has an actual retention requirement before designing storage/backup around an assumption.
+14. **No license has been chosen** for the now-public `calpop` repo. Doesn't block anything today, but matters the moment "someone else self-hosts this" becomes real rather than hypothetical — an unlicensed public repo defaults to "all rights reserved," which may not be what's wanted.
 
 **Explicitly NOT a finding, clarified by the project owner:** the Caesar-cipher CPID scheme (`core/cipher.py`) is a human-communication convention (how sponsors/staff refer to a sponsee without using their real name), not a claimed security control. It stays as-is. It is unrelated to, and does not substitute for, the computer-security items above.
 
@@ -58,71 +78,63 @@ If needed, requirements.txt packages are stored in mamba enviornment named calpo
 ### Phase 0 — Foundation & Development Environment
 - **Goal:** Set up the modern project skeleton and local infrastructure.
 - **Highlights:** Vite + FastAPI scaffolding, Docker Compose with Traefik, developer TLS certificates, health endpoints.
-- **Status:** ✅ Completed (30Nov2025)
+- **Status:** ✅ Completed. Verified 07–08Aug2026 by actually standing the full stack up (native Docker Engine in WSL, no Docker Desktop) and running it.
 
 ### Phase 1 — Configuration & Security Scaffolding
 - **Goal:** Centralize settings, secrets, and file-system protections.
-- **Highlights:** `server/config.py`, AES-256 helper, `.env`/`.env.example`, secure `data/` storage layout.
-- **Status:** ✅ Completed (30Nov2025)
+- **Highlights:** `server/config.py`, AES-256 helper (`core/cipher.py`), `.env`, `data/` storage layout.
+- **Status:** ⚠️ Scaffolding exists, not functional. `FILE_ENCRYPTION_KEY`/`MAPPING_STORE_KEY` in `.env` are still literal placeholder strings; the AES-GCM functions are never called anywhere. All PII on disk (scans, PDFs, the roster) is plaintext today. **Next up** (see punch list below).
 
 ### Phase 2 — Authentication, Authorization & Sessions
 - **Goal:** Replace Streamlit login with Azure AD + RBAC.
 - **Highlights:** MSAL integration, `/api/auth/*` routes, session middleware, scoped access for admin/sponsor/auditor, `/api/auth/me`.
-- **Status:** ✅ Completed (12Dec2025)
+- **Status:** ✅ Completed, and independently verified twice: the original 07Aug2026 audit confirmed real MSAL + real per-route role checks (not stubbed); the 08Aug2026 session then found and fixed two RBAC gaps (`get_prisoner_details` was reachable by any sponsor; the `/api/static/data` file mount had **no auth at all**, exposing the full roster) and verified the fixes live with minted test sessions. **Open item:** Azure AD is a cloud dependency — conflicts with the offline-communication goal and requires a Microsoft tenant per deploying org. Self-hosted auth is a candidate replacement.
 
 ### Phase 3 — Prisoner Data Layer & Excel Integration
 - **Goal:** Move prisoner/sponsor data into Postgres while keeping Excel uploads as the intake method.
-- **Highlights:** SQLAlchemy models, Alembic migrations, Excel upsert pipeline, CSV export endpoints for prisoners, letters, sponsors.
-- **Status:** ✅ Completed (12Dec2025)
+- **Highlights:** SQLAlchemy models, Alembic migrations, Excel upsert pipeline, CSV export endpoints.
+- **Status:** ⚠️ Completed but duplicated. Postgres schema + Alembic are real and migrated successfully on a live run (08Aug2026). But the Excel-based `ExcelMapManager` ("Secure Vault") is a second, parallel PII store still live in `main.py`/`globals.py`, and it's the *only* place CDCR numbers are tracked — Postgres's `Prisoner` table has no CDCR column. A third store, the legacy SQLite `letters.db`, is also still wired in. Three overlapping stores, unreconciled.
 
 ### Phase 4 — Letter Authoring & Conversion Workflow
 - **Goal:** Deliver markdown/HTML editor, templates, autosave, and conversions.
 - **Implemented:** `/api/letters` CRUD, `/api/assignments` CRUD, conversion service (txt/docx/pdf).
-- **Upcoming Tasks:** Frontend editor integration (Phase 10).
-- **Status:** ✅ Backend Completed (12Dec2025).
+- **Status:** 📋 Completed (backend + frontend), per an inherited 09Jan2026 handoff note (editor, autosave with 3s debounce, revision-request flow, test coverage in `server/tests/test_submission_workflow.py`). **Not independently re-verified** during either the 07Aug2026 or 08Aug2026 sessions — plausible, taken on trust, not confirmed firsthand.
 
 ### Phase 5 — OCR & Prisoner Matching Workstation
 - **Goal:** Provide an OCR workstation similar to the Streamlit flow.
-- **Upcoming Tasks:** Pluggable OCR providers (local/Google Vision), image enhancement, confidence visualization, matching heuristics.
-- **Status:** 🔄 Backend Schema Done (12Dec2025).
+- **Status:** ⚠️ Core loop is real and tested (07–08Aug2026), with a confirmed accuracy caveat. OCR now runs fully offline via a self-hosted Ollama vision model (`qwen2.5vl:7b`), replacing the old Google Vision default and the old mock stub. Validated against real scans: printed/machine text (postage meter, barcodes) transcribes cleanly; handwritten reply-address blocks are unreliable — one test produced a garbled, undeliverable return address at 0.95 self-reported confidence, and cropping/upscaling didn't fix it (the model hallucinated a plausible-sounding but wrong prison name). Self-reported confidence is not trustworthy as a QA gate — this is an inherent OCR/handwriting limitation, not an implementation gap. It's mitigated by design: fuzzy candidate matching (`MatchingService`/rapidfuzz) plus a mandatory human-approval candidate list in `ScantronStation.jsx` — nothing is auto-selected, a person always picks the match, verified end-to-end against the live running stack. The mitigation works; the underlying transcription unreliability is still real, hence ⚠️ not ✅. Redaction (Phase 6) is separate and still unverified.
 
 ### Phase 6 — Redaction Pipeline & Scoring Gate
 - **Goal:** Implement redaction scoring, visual tools, and audit trails.
-- **Upcoming Tasks:** Redaction service/UI, threshold enforcement, RedactionEvent logging.
-- **Status:** 🔄 Backend Schema Done (12Dec2025).
+- **Status:** ❓ Unverified. Older notes claimed "Visual redaction active in Scantron" — not independently confirmed in either August audit. Needs a direct check before trusting this status either way.
 
 ### Phase 7 — Assignments & Sponsor Portal UX
 - **Goal:** Recreate and expand sponsor experience with a modern UI.
-- **Upcoming Tasks:** Assignment lifecycle, sponsor submission editor, revisions loop.
-- **Status:** 🔄 Backend Schema Done (12Dec2025).
+- **Status:** ❓ Unverified. Needs re-verification.
 
 ### Phase 8 — Envelope Printing & Queue Management
 - **Goal:** Batch envelope generation with safety-aware templates.
-- **Upcoming Tasks:** Envelope job queues, PDF rendering, queue dashboard.
-- **Status:**  Backend Schema Done (12Dec2025).
+- **Status:** ❓ Unverified. Needs re-verification.
 
 ### Phase 9 — OneDrive Sync & Reconciliation
 - **Goal:** Automated push/pull between Postgres artifacts and sponsor folders.
-- **Upcoming Tasks:** Graph client, scheduled jobs, conflict resolution workflows.
-- **Status:**  Backend Schema Done (12Dec2025).
+- **Status:** ❓ Unverified. Also worth revisiting given the offline-communication goal — OneDrive sync is itself a cloud dependency; confirm it's actually wanted before building it out further, rather than assuming it should just be finished.
 
 ### Phase 10 — Frontend Application Build-Out (Unified Communication)
 - **Goal:** Build the React application focusing on a "Unified Inbox" that handles both legacy PDF scans and future digital-only (Email API) messaging.
-- **Highlights:** 
-    - **Unified Inbox View**: One list for all prisoner communication (Scanned/OCR or Digital).
-    - **Sponsor Response Station**: Data-first web editor (Markdown) that stores replies as searchable data.
-    - **Dual-Output Engine**: A "Submit" flow that can generate a PDF (Current) or call an API (Future).
-- **Status:** 🔄 In Progress (Building Unified Inbox foundation).
+- **Highlights (as designed, not independently verified):**
+    - **Unified Inbox View** — one list for all prisoner communication (scanned/OCR or digital).
+    - **Sponsor Response Station** — data-first web editor (Markdown) that stores replies as searchable data.
+    - **Dual-Output Engine** — a "Submit" flow that can generate a PDF (current) or call an API (future).
+- **Status:** ❓ Unverified, and the project owner has independently flagged the current UI as not what they want — a frontend pass is planned regardless of backend status underneath it.
 
 ### Phase 11 — Security Hardening & Compliance
 - **Goal:** Enforce security best practices and retention policies.
-- **Upcoming Tasks:** TLS enforcement, secrets rotation, encrypted backups, image scanning.
-- **Status:** 🔜 Planned.
+- **Status:** 🔄 Actively in progress — see "Security & Environment Findings" above for the live, itemized punch list (what's fixed, what's open, what needs the project owner's own action).
 
 ### Phase 12 — Testing, Performance & Documentation
 - **Goal:** Ensure reliability and produce handoff materials.
-- **Upcoming Tasks:** Unit/integration tests, performance benchmarks, CI/CD, admin/sponsor/deployment guides.
-- **Status:** 🔜 Planned.
+- **Status:** 🔜 Planned. 4 test files / 318 lines exist (`server/tests/`), covering Letter/Assignment/Submission service logic against in-memory SQLite — no coverage yet for auth, RBAC boundaries, file storage/encryption, or OCR/matching.
 
 ## Operational Checkpoints (to date)
 

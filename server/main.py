@@ -1,7 +1,9 @@
-from fastapi import Depends, FastAPI, HTTPException, UploadFile, File
+from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 from typing import List, Optional
 import os
 import sys
@@ -46,7 +48,33 @@ ensure_data_directories(settings.data_root)
 
 session_manager = SessionManager(settings)
 
+
+class StaticDataAuthMiddleware(BaseHTTPMiddleware):
+    """
+    Guard the raw /api/static/data mount, which serves prisoner scans, the
+    roster, and submission/envelope artifacts straight off disk. Starlette's
+    StaticFiles mount bypasses FastAPI's route-level Depends() auth entirely,
+    so without this, every file under data/ -- including the full prisoner
+    roster -- is downloadable by anyone who can reach this port, no login
+    required. Requires any authenticated session (admin/sponsor/auditor);
+    this closes the "completely unauthenticated" hole but does not yet
+    restrict a sponsor to only their own assigned files -- that's a finer
+    per-resource authorization gap, tracked separately.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith("/api/static/data"):
+            user = getattr(request.state, "user", None)
+            if user is None:
+                return JSONResponse({"detail": "Authentication required"}, status_code=401)
+        return await call_next(request)
+
+
 app = FastAPI(title="CalPOP API", debug=settings.debug)
+# Registered before SessionMiddleware so that, per Starlette's middleware
+# ordering (most-recently-added = outermost = runs first), SessionMiddleware
+# populates request.state.user BEFORE this guard checks it.
+app.add_middleware(StaticDataAuthMiddleware)
 app.add_middleware(SessionMiddleware, session_manager=session_manager, settings=settings)
 app.include_router(auth_router)
 app.include_router(submissions_router, prefix=f"{settings.api_prefix}/submissions")
@@ -210,10 +238,11 @@ def get_prisoner_info(cpid: str, user=Depends(require_admin_or_sponsor)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/prisoners/{cpid}/details")
-def get_prisoner_details(cpid: str, user=Depends(require_admin_or_sponsor)):
+def get_prisoner_details(cpid: str, user=Depends(require_admin)):
     """
     Get full prisoner details including real name and mailing address.
-    Available to admins and sponsors for correspondence context.
+    Admin-only: sponsors work in CPID space via /api/prisoners/{cpid} (anonymized);
+    only the program manager resolves identity to actually answer/mail letters.
     """
     try:
         resolved_data = excel_manager.resolve_name_from_cpid(cpid)
