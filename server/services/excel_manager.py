@@ -369,16 +369,33 @@ class ExcelMapManager:
                 if not cpid:
                     continue
                     
-                # Prepare data for upsert
+                def field(col: str) -> Optional[str]:
+                    val = row.get(col)
+                    return str(val).strip() if pd.notna(val) else None
+
+                # Safety classification: same fail-safe as resolve_name_from_cpid --
+                # blank/'N' -> safe, anything else (including unrecognized) -> unsafe.
+                unsafe_flag = (field('Unsafe?') or '').strip().upper()
+                safety_classification = 'safe' if unsafe_flag in ('N', 'NO', 'FALSE', '0', 'SAFE', '') else 'unsafe'
+
+                # Prepare data for upsert. 'housing' (cell/unit, e.g. "E25-B204-1L")
+                # and 'Prison' (the actual facility name) are different columns in
+                # the roster -- previously conflated (housing was being written
+                # into the 'facility' Postgres column, and housing wasn't synced
+                # at all, so envelope generation's ORM fallback path always had
+                # blank housing). Fixed here to map each to its own column.
                 prisoner_data = {
                     'cpid': cpid,
-                    'first_name': str(row.get('fName', '')) if pd.notna(row.get('fName')) else None,
-                    'last_name': str(row.get('lName', '')) if pd.notna(row.get('lName')) else None,
-                    'facility': str(row.get('housing', '')) if pd.notna(row.get('housing')) else None,
-                    'address': str(row.get('address', '')) if pd.notna(row.get('address')) else None,
-                    'city': str(row.get('city', '')) if pd.notna(row.get('city')) else None,
-                    'state': str(row.get('state', '')) if pd.notna(row.get('state')) else None,
-                    'zip': str(row.get('zip', '')) if pd.notna(row.get('zip')) else None,
+                    'first_name': field('fName'),
+                    'last_name': field('lName'),
+                    'facility': field('facility') or field('Prison'),
+                    'housing': field('housing'),
+                    'address': field('address'),
+                    'city': field('city'),
+                    'state': field('state'),
+                    'zip': field('zip'),
+                    'cdcr_number': field('CDCRno'),
+                    'safety_classification': safety_classification,
                 }
                 
                 stmt = insert(Prisoner).values(**prisoner_data)

@@ -15,10 +15,17 @@ export function PrisonersPage() {
     const [batchResult, setBatchResult] = useState(null)
 
     useEffect(() => {
-        fetch('/api/excel/status', { credentials: 'include' })
-            .then(res => res.json())
+        // Was fetching /api/excel/status and reading `recent_records`, a field
+        // that field never existed in that endpoint's response -- this list
+        // silently rendered empty. /api/prisoners is the real listing endpoint,
+        // reading the full (decrypted) Postgres roster.
+        fetch('/api/prisoners', { credentials: 'include' })
+            .then(res => {
+                if (!res.ok) throw new Error(`Failed to load prisoners (${res.status})`)
+                return res.json()
+            })
             .then(data => {
-                setPrisoners(data.recent_records || [])
+                setPrisoners(data || [])
                 setLoading(false)
             })
             .catch(err => {
@@ -29,8 +36,8 @@ export function PrisonersPage() {
 
     const filtered = prisoners.filter(p =>
         p.cpid?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.fName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.lName?.toLowerCase().includes(searchTerm.toLowerCase())
+        p.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     const toggleSelection = (cpid) => {
@@ -78,6 +85,12 @@ export function PrisonersPage() {
                     <p className="text-slate-400 text-sm mt-1">Authorized View: Full Population Lookup</p>
                 </div>
                 <div className="flex items-center gap-4">
+                    <a
+                        href="/api/prisoners/export"
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg font-bold border border-slate-700 flex items-center gap-2 text-sm"
+                    >
+                        <ExternalLink className="w-4 h-4" /> Download Excel
+                    </a>
                     {selectedCpids.length > 0 && (
                         <button
                             onClick={() => setShowBatchModal(true)}
@@ -244,12 +257,16 @@ export function PrisonersPage() {
                                         <User className={`w-5 h-5 ${isSelected ? 'text-cyan-400' : 'text-slate-400 group-hover:text-cyan-400'}`} />
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-100">{p.fName} {p.lName}</h3>
+                                        <h3 className="font-bold text-slate-100">{p.first_name} {p.last_name}</h3>
                                         <span className="text-xs font-mono text-cyan-500">{p.cpid}</span>
                                     </div>
                                 </div>
-                                <div className="bg-slate-900 px-2 py-1 rounded text-[10px] font-bold text-slate-500 uppercase border border-slate-800">
-                                    Stage {p.Stage || 'N/A'}
+                                <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${
+                                    p.safety_classification === 'safe'
+                                        ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800'
+                                        : 'bg-red-900/30 text-red-400 border-red-800'
+                                }`}>
+                                    {p.safety_classification === 'safe' ? 'Safe' : 'Unsafe'}
                                 </div>
                             </div>
 

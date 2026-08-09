@@ -95,12 +95,13 @@ class SubmissionService:
         last_name, cdcr_number, address, city, state, zip, housing, facility,
         safety_classification), regardless of which backing store has the data.
 
-        Prefers the Excel vault (the only place CDCR numbers and the Unsafe?
-        flag currently live); falls back to the Postgres Prisoner row, which
-        has no CDCR number but does have address/safety_classification. If
-        neither source has a usable safety classification, EnvelopeService's
-        own fail-safe (unknown -> "unsafe") is what actually protects against
-        a wrong/identifying sender address, not this function.
+        Prefers the Excel vault; falls back to the Postgres Prisoner row if
+        a CPID isn't found there (Postgres is kept in sync with Excel on
+        every upload/startup and now carries the same fields, including CDCR
+        number and housing). If neither source has a usable safety
+        classification, EnvelopeService's own fail-safe (unknown -> "unsafe")
+        is what actually protects against a wrong/identifying sender
+        address, not this function.
 
         Takes just a CPID (not a Submission) so it's directly reusable by
         batch printing, which needs to know each prisoner's classification
@@ -119,14 +120,14 @@ class SubmissionService:
 
         return {
             "cpid": prisoner.cpid,
-            "cdcr_number": None,  # not tracked in Postgres today -- Excel vault only
+            "cdcr_number": prisoner.cdcr_number or "",
             "first_name": prisoner.first_name,
             "last_name": prisoner.last_name,
             "address": prisoner.address or "",
             "city": prisoner.city or "",
             "state": prisoner.state or "",
             "zip": prisoner.zip or "",
-            "housing": "",  # not tracked in Postgres today
+            "housing": prisoner.housing or "",
             "facility": prisoner.facility or "",
             "safety_classification": (prisoner.safety_classification or "").strip().lower(),
         }

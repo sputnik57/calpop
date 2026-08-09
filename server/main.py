@@ -223,6 +223,87 @@ def get_excel_status(user=Depends(require_admin)):
     """Get status of loaded Excel data."""
     return excel_manager.get_summary()
 
+@app.get("/api/prisoners")
+def list_prisoners(user=Depends(require_admin)):
+    """
+    Full prisoner roster from Postgres, decrypted -- the "view it completely"
+    counterpart to the encrypted-at-rest PII columns. Admin-only. Must be
+    registered before /api/prisoners/{cpid} or FastAPI would match this
+    path as cpid="export" etc. (route order matters, not just specificity).
+    """
+    from db.models import Prisoner
+
+    db = SessionLocal()
+    try:
+        prisoners = db.query(Prisoner).order_by(Prisoner.cpid).all()
+        return [
+            {
+                "cpid": p.cpid,
+                "first_name": p.first_name,
+                "last_name": p.last_name,
+                "cdcr_number": p.cdcr_number,
+                "housing": p.housing,
+                "facility": p.facility,
+                "address": p.address,
+                "city": p.city,
+                "state": p.state,
+                "zip": p.zip,
+                "safety_classification": p.safety_classification,
+            }
+            for p in prisoners
+        ]
+    finally:
+        db.close()
+
+
+@app.get("/api/prisoners/export")
+def export_prisoners_excel(user=Depends(require_admin)):
+    """
+    Download the full Postgres prisoner roster as an .xlsx. Lets the program
+    manager keep reviewing/auditing this data in Excel even though it's now
+    stored encrypted at rest -- the whole point of adding this endpoint.
+    """
+    import io
+    from datetime import datetime
+    import pandas as pd
+    from fastapi.responses import StreamingResponse
+    from db.models import Prisoner
+
+    db = SessionLocal()
+    try:
+        prisoners = db.query(Prisoner).order_by(Prisoner.cpid).all()
+        rows = [
+            {
+                "CPID": p.cpid,
+                "fName": p.first_name,
+                "lName": p.last_name,
+                "CDCRno": p.cdcr_number,
+                "housing": p.housing,
+                "facility": p.facility,
+                "address": p.address,
+                "city": p.city,
+                "state": p.state,
+                "zip": p.zip,
+                "Unsafe?": "Y" if (p.safety_classification or "").strip().lower() == "unsafe" else "",
+            }
+            for p in prisoners
+        ]
+    finally:
+        db.close()
+
+    df = pd.DataFrame(rows)
+    buffer = io.BytesIO()
+    df.to_excel(buffer, index=False)
+    buffer.seek(0)
+
+    filename = f"prisoner_roster_export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @app.get("/api/prisoners/{cpid}")
 def get_prisoner_info(cpid: str, user=Depends(require_admin_or_sponsor)):
     """

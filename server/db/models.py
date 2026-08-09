@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .encrypted_types import EncryptedString
 
 letter_status_enum = Enum(
     "intake",
@@ -76,15 +77,24 @@ class User(Base, TimestampMixin):
 
 
 class Prisoner(Base, TimestampMixin):
+    # cpid is the intentionally-non-identifying reference code already used
+    # as the join key everywhere in the app -- stays plaintext so it's still
+    # queryable/indexable. safety_classification isn't identifying on its
+    # own either. Everything else that identifies a specific person is
+    # encrypted at rest (AES-256-GCM, see db/encrypted_types.py) and cannot
+    # be filtered via SQL -- code that needs to match/search these fields
+    # fetches rows and compares after decryption (see MatchingService).
     cpid: Mapped[str] = mapped_column(String(100), primary_key=True)
-    first_name: Mapped[Optional[str]] = mapped_column(String(100))
-    last_name: Mapped[Optional[str]] = mapped_column(String(100))
-    aliases: Mapped[Optional[str]] = mapped_column(Text)
-    facility: Mapped[Optional[str]] = mapped_column(String(255))
-    address: Mapped[Optional[str]] = mapped_column(String(255))
-    city: Mapped[Optional[str]] = mapped_column(String(100))
-    state: Mapped[Optional[str]] = mapped_column(String(50))
-    zip: Mapped[Optional[str]] = mapped_column(String(20))
+    first_name: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    last_name: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    aliases: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    facility: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    address: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    city: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    state: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    zip: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    cdcr_number: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    housing: Mapped[Optional[str]] = mapped_column(EncryptedString)
     safety_classification: Mapped[Optional[str]] = mapped_column(String(50))
 
     letters: Mapped[List["Letter"]] = relationship(back_populates="prisoner")
