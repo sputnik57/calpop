@@ -26,7 +26,7 @@ Quick index — full explanation for each phase is in **Detailed Roadmap** below
 | 0 | Foundation & development environment | ✅ |
 | 1 | Configuration & security scaffolding | ⚠️ |
 | 2 | Authentication, authorization & sessions | ✅ |
-| 3 | Prisoner data layer & Excel integration | ⚠️ |
+| 3 | Prisoner data layer & Excel integration | ✅ |
 | 4 | Letter authoring & conversion workflow | 📋 |
 | 5 | OCR & prisoner matching workstation | ⚠️ |
 | 6 | Redaction pipeline & scoring gate | ❓ |
@@ -59,7 +59,7 @@ If needed, requirements.txt packages are stored in mamba enviornment named calpo
    - ✅ **Database columns — done (09Aug2026).** `MAPPING_STORE_KEY` is now a real generated key. New `EncryptedString` SQLAlchemy TypeDecorator (`db/encrypted_types.py`) transparently encrypts/decrypts every identifying `Prisoner` column (name, address, city/state/zip, CDCR#, facility, housing, aliases) with AES-256-GCM. `cpid` and `safety_classification` stay plaintext (not identifying on their own; `cpid` is the join key used everywhere). Verified with a raw `psql` query that Postgres genuinely stores ciphertext, and that the ORM transparently decrypts it back correctly. Along the way, completed `sync_with_postgres_prisoners` (it was silently dropping CDCR number and safety classification) and fixed a real mapping bug (Excel's `housing` column was being written into the `facility` Postgres column; the actual facility name, `Prison`, was never synced at all). Also added the roster's first real "view everything" endpoint (`GET /api/prisoners`) and an Excel export (`GET /api/prisoners/export`) — the frontend prisoner directory had been silently rendering empty this whole time, calling a response field (`recent_records`) that never existed in the API.
    - **Files — still not done.** `FILE_ENCRYPTION_KEY` is still a placeholder; `artifact_service.py`, `envelope_service.py`, and scanned images on disk are still plaintext. Same `core/cipher.py` AES-GCM functions, different key, different call sites.
 3. Azure AD is a cloud login dependency; evaluate a self-hosted auth replacement (also unlocks distributing this tool to other program managers without a Microsoft tenant).
-4. Reconcile the three overlapping prisoner data stores (Postgres `Prisoner`, `ExcelMapManager` vault, legacy SQLite `letters.db`) into one. At minimum, decide where CDCR numbers canonically live — right now it's Excel-only.
+4. ✅ **Partially done (09Aug2026):** Postgres vs. Excel is resolved — Postgres is the explicit source of truth (see Phase 3), CDCR numbers now live there too (encrypted), Excel is import/export only. **Still open:** the legacy SQLite `letters.db` (`core/letter_db.py`) remains a third, unreconciled store.
 5. Delete confirmed dead code from the original Streamlit carryover: `core/database.py`, `core/ocr.py`, and the now-superseded pre-audit version of `services/matching.py`/`services/vector_db.py` (distinct from the still-used `services/matching_service.py`).
 6. ✅ **Done (07Aug2026)** — secret rotation (see above). Two loose ends still need the project owner's own action, not something doable from here:
    - If `docker compose up` was ever run before today with the old `calpop/calpop` password, the Postgres data volume already has it baked in — the new `.env` value alone won't rotate a live database's password. Run `ALTER USER calpop WITH PASSWORD '<new password from .env>';` inside the `db` container if an auth error ever shows up (not observed today, since today's run happened to be against a fresh volume).
@@ -93,9 +93,12 @@ If needed, requirements.txt packages are stored in mamba enviornment named calpo
 - **Status:** ✅ Completed, and independently verified twice: the original 07Aug2026 audit confirmed real MSAL + real per-route role checks (not stubbed); the 08Aug2026 session then found and fixed two RBAC gaps (`get_prisoner_details` was reachable by any sponsor; the `/api/static/data` file mount had **no auth at all**, exposing the full roster) and verified the fixes live with minted test sessions. **Open item:** Azure AD is a cloud dependency — conflicts with the offline-communication goal and requires a Microsoft tenant per deploying org. Self-hosted auth is a candidate replacement.
 
 ### Phase 3 — Prisoner Data Layer & Excel Integration
-- **Goal:** Move prisoner/sponsor data into Postgres while keeping Excel uploads as the intake method.
-- **Highlights:** SQLAlchemy models, Alembic migrations, Excel upsert pipeline, CSV export endpoints.
-- **Status:** ⚠️ Completed but duplicated. Postgres schema + Alembic are real and migrated successfully on a live run (08Aug2026). But the Excel-based `ExcelMapManager` ("Secure Vault") is a second, parallel PII store still live in `main.py`/`globals.py`, and it's the *only* place CDCR numbers are tracked — Postgres's `Prisoner` table has no CDCR column. A third store, the legacy SQLite `letters.db`, is also still wired in. Three overlapping stores, unreconciled.
+- **Goal:** Postgres as the actual source of truth for prisoner data; Excel as an on-demand import/export convenience, not a parallel authority.
+- **Status:** ✅ Reworked and verified live (09Aug2026), decision explicitly made with the project owner: **Postgres is the source of truth.** In-app edits (during envelope processing and letter writing) are canonical; Excel is for offline review/edits you choose to bring in, or a snapshot you download when you don't want to run the app.
+  - PII columns encrypted at rest (AES-256-GCM), full sync including CDCR number/housing/safety classification (previously silently dropped), `GET /api/prisoners` + `GET /api/prisoners/export` for viewing/downloading — see punch list item 2 for detail.
+  - The dangerous part of the old model — Postgres getting unconditionally overwritten by whatever Excel file sat on disk, on every container restart — is gone. Startup now only loads Excel into memory (harmless); the database is never touched except by an explicit upload.
+  - Excel upload is now two-step: `POST /api/excel/upload/preview` stages the file and returns a diff against current Postgres (new / changed with field-level detail / unchanged / present-in-DB-but-missing-from-file); `POST /api/excel/upload/apply` commits only after that's reviewed. Records missing from the uploaded file are never deleted. Verified live with a real modified file before committing.
+  - **Still open:** the legacy SQLite `letters.db` (`core/letter_db.py`) is a third store, still wired in, unreconciled — this phase closed the Postgres/Excel duplication, not that one.
 
 ### Phase 4 — Letter Authoring & Conversion Workflow
 - **Goal:** Deliver markdown/HTML editor, templates, autosave, and conversions.
