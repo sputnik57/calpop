@@ -350,6 +350,99 @@ class ExcelMapManager:
             logger.error(f"Error syncing with letter DB: {str(e)}")
             return 0
             
+    @staticmethod
+    def _extract_prisoner_row(row) -> Optional[Dict[str, Any]]:
+        """
+        Normalize one Excel row into the shape Postgres's Prisoner table
+        expects. Returns None if the row has no CPID. Shared by
+        sync_with_postgres_prisoners and diff_with_postgres_prisoners so
+        both use identical field mapping/safety-classification logic.
+        """
+        cpid = str(row.get('CPID') or row.get('code') or '').strip()
+        if not cpid:
+            return None
+
+        def field(col: str) -> Optional[str]:
+            val = row.get(col)
+            return str(val).strip() if pd.notna(val) else None
+
+        # Safety classification: same fail-safe as resolve_name_from_cpid --
+        # blank/'N' -> safe, anything else (including unrecognized) -> unsafe.
+        unsafe_flag = (field('Unsafe?') or '').strip().upper()
+        safety_classification = 'safe' if unsafe_flag in ('N', 'NO', 'FALSE', '0', 'SAFE', '') else 'unsafe'
+
+        # 'housing' (cell/unit, e.g. "E25-B204-1L") and 'Prison' (the actual
+        # facility name) are different columns in the roster -- previously
+        # conflated (housing was being written into the 'facility' Postgres
+        # column, and housing wasn't synced at all). Mapped separately here.
+        return {
+            'cpid': cpid,
+            'first_name': field('fName'),
+            'last_name': field('lName'),
+            'facility': field('facility') or field('Prison'),
+            'housing': field('housing'),
+            'address': field('address'),
+            'city': field('city'),
+            'state': field('state'),
+            'zip': field('zip'),
+            'cdcr_number': field('CDCRno'),
+            'safety_classification': safety_classification,
+        }
+
+    def diff_with_postgres_prisoners(self, db: Session) -> Dict[str, Any]:
+        """
+        Compare this manager's loaded Excel data against current Postgres
+        state, per prisoner (matched by CPID), without writing anything.
+        Postgres is the source of truth as of 09Aug2026 -- this exists so an
+        upload can be reviewed before it's allowed to overwrite anything,
+        rather than blindly upserting every row in the file.
+        """
+        if not self.is_loaded():
+            return {"new": [], "changed": [], "unchanged_count": 0, "missing_from_file": []}
+
+        file_cpids: set = set()
+        new_records = []
+        changed_records = []
+        unchanged_count = 0
+        compare_fields = [
+            'first_name', 'last_name', 'facility', 'housing',
+            'address', 'city', 'state', 'zip', 'cdcr_number', 'safety_classification',
+        ]
+
+        for _, row in self.df.iterrows():
+            incoming = self._extract_prisoner_row(row)
+            if not incoming:
+                continue
+            cpid = incoming['cpid']
+            file_cpids.add(cpid)
+
+            existing = db.query(Prisoner).filter(Prisoner.cpid == cpid).first()
+            if not existing:
+                new_records.append(incoming)
+                continue
+
+            diffs = {}
+            for f in compare_fields:
+                old_val = getattr(existing, f)
+                new_val = incoming[f]
+                if (old_val or None) != (new_val or None):
+                    diffs[f] = {"old": old_val, "new": new_val}
+
+            if diffs:
+                changed_records.append({"cpid": cpid, "changes": diffs})
+            else:
+                unchanged_count += 1
+
+        all_db_cpids = {p.cpid for p in db.query(Prisoner.cpid).all()}
+        missing_from_file = sorted(all_db_cpids - file_cpids)
+
+        return {
+            "new": new_records,
+            "changed": changed_records,
+            "unchanged_count": unchanged_count,
+            "missing_from_file": missing_from_file,
+        }
+
     def sync_with_postgres_prisoners(self, db: Session) -> int:
         """
         Sync Excel prisoners with the Postgres database.
@@ -365,39 +458,10 @@ class ExcelMapManager:
             records_count = 0
             # Iterate through the dataframe and upsert each prisoner
             for _, row in self.df.iterrows():
-                cpid = str(row.get('CPID') or row.get('code') or '').strip()
-                if not cpid:
+                prisoner_data = self._extract_prisoner_row(row)
+                if not prisoner_data:
                     continue
-                    
-                def field(col: str) -> Optional[str]:
-                    val = row.get(col)
-                    return str(val).strip() if pd.notna(val) else None
 
-                # Safety classification: same fail-safe as resolve_name_from_cpid --
-                # blank/'N' -> safe, anything else (including unrecognized) -> unsafe.
-                unsafe_flag = (field('Unsafe?') or '').strip().upper()
-                safety_classification = 'safe' if unsafe_flag in ('N', 'NO', 'FALSE', '0', 'SAFE', '') else 'unsafe'
-
-                # Prepare data for upsert. 'housing' (cell/unit, e.g. "E25-B204-1L")
-                # and 'Prison' (the actual facility name) are different columns in
-                # the roster -- previously conflated (housing was being written
-                # into the 'facility' Postgres column, and housing wasn't synced
-                # at all, so envelope generation's ORM fallback path always had
-                # blank housing). Fixed here to map each to its own column.
-                prisoner_data = {
-                    'cpid': cpid,
-                    'first_name': field('fName'),
-                    'last_name': field('lName'),
-                    'facility': field('facility') or field('Prison'),
-                    'housing': field('housing'),
-                    'address': field('address'),
-                    'city': field('city'),
-                    'state': field('state'),
-                    'zip': field('zip'),
-                    'cdcr_number': field('CDCRno'),
-                    'safety_classification': safety_classification,
-                }
-                
                 stmt = insert(Prisoner).values(**prisoner_data)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=['cpid'],

@@ -110,22 +110,21 @@ async def startup_event():
             print(f"URL: {route.path}")
     print("-------------------------\n")
     
-    # Auto-load last uploaded map if it exists
+    # Auto-load last uploaded map into the in-memory Excel vault if it exists.
+    # This is memory-only (populates excel_manager.df for lookups/reference)
+    # and does NOT touch Postgres -- Postgres is the source of truth as of
+    # 09Aug2026, and syncing it here unconditionally on every restart used to
+    # mean any in-app edit could be silently overwritten by however old this
+    # file happened to be the next time the container restarted for any
+    # reason. Pushing Excel data into Postgres is now only ever a deliberate
+    # action via POST /api/excel/upload (e.g. after editing this file offline
+    # and wanting to bring those changes in) -- never automatic.
     active_map_path = settings.data_root / "active_map.xlsx"
     if active_map_path.exists():
         try:
-            print(f"INFO: Found persistent map at {active_map_path}. Auto-loading...")
+            print(f"INFO: Found persistent map at {active_map_path}. Auto-loading (memory only, not synced to Postgres)...")
             excel_manager.load_excel(str(active_map_path))
-            print(f"SUCCESS: Auto-loaded {len(excel_manager.df)} prisoner records.")
-            
-            # Sync with Postgres on startup
-            db_session = SessionLocal()
-            try:
-                sync_count = excel_manager.sync_with_postgres_prisoners(db_session)
-                print(f"INFO: Synced {sync_count} prisoners to Postgres on startup.")
-            finally:
-                db_session.close()
-                
+            print(f"SUCCESS: Auto-loaded {len(excel_manager.df)} prisoner records into memory.")
         except Exception as e:
             print(f"ERROR: Failed to auto-load persistent map: {e}")
 
@@ -173,48 +172,87 @@ def get_program_summary():
         raise HTTPException(status_code=500, detail=str(e))
 
 # Excel Management Endpoints
-@app.post("/api/excel/upload")
-async def upload_excel_map(
-    file: UploadFile = File(...),
-    user=Depends(require_admin),
-    db_postgres: Session = Depends(get_session),
-):
+@app.post("/api/excel/upload/preview")
+async def preview_excel_upload(file: UploadFile = File(...), user=Depends(require_admin)):
     """
-    Upload and process Excel prisoner map file.
-    This is the core of the Secure Vault - loads sensitive data for ID resolution.
+    Stage an uploaded Excel file and compute a diff against current Postgres
+    data (source of truth as of 09Aug2026), without touching the database or
+    the live in-memory Excel vault. Call /api/excel/upload/apply with the
+    returned staging_token to actually commit these changes -- a blind
+    overwrite-everything-in-the-file upload risked silently clobbering edits
+    made directly in the app since the file was last exported.
     """
+    import uuid
+
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
+
     try:
-        if not file.filename.endswith(('.xlsx', '.xls')):
-            raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
-        
-        # Read file contents
         file_bytes = await file.read()
-        
-        # Load into Excel manager
-        excel_manager.load_excel_from_bytes(file_bytes, file.filename)
-        
-        # Persist the file for auto-loading on restart
-        active_map_path = settings.data_root / "active_map.xlsx"
-        with open(active_map_path, "wb") as f:
+
+        staging_token = uuid.uuid4().hex
+        staging_dir = settings.data_root / "artifacts" / "tmp"
+        staging_dir.mkdir(parents=True, exist_ok=True)
+        staging_path = staging_dir / f"excel_staging_{staging_token}.xlsx"
+        with open(staging_path, "wb") as f:
             f.write(file_bytes)
+
+        # Throwaway manager so the live vault isn't mutated until confirmed.
+        preview_manager = ExcelMapManager()
+        preview_manager.load_excel(str(staging_path))
+
+        db_session = SessionLocal()
+        try:
+            diff = preview_manager.diff_with_postgres_prisoners(db_session)
+        finally:
+            db_session.close()
+
+        return {"staging_token": staging_token, "diff": diff}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/excel/upload/apply")
+def apply_excel_upload(payload: dict, user=Depends(require_admin)):
+    """
+    Commit a previously staged upload (see /api/excel/upload/preview): loads
+    it into the live Excel vault, persists it as data/active_map.xlsx, and
+    syncs Postgres for real. This is the only place an upload is allowed to
+    actually change the database -- deliberately separate from preview.
+    """
+    staging_token = payload.get("staging_token")
+    if not staging_token:
+        raise HTTPException(status_code=400, detail="staging_token is required")
+
+    staging_path = settings.data_root / "artifacts" / "tmp" / f"excel_staging_{staging_token}.xlsx"
+    if not staging_path.exists():
+        raise HTTPException(status_code=404, detail="Staged upload not found or expired -- run preview again")
+
+    try:
+        active_map_path = settings.data_root / "active_map.xlsx"
+        with open(staging_path, "rb") as src, open(active_map_path, "wb") as dst:
+            dst.write(src.read())
         print(f"INFO: Persisted active map to {active_map_path}")
-        
-        # Sync with letter database (Legacy SQLite)
-        sync_count = excel_manager.sync_with_letter_db(db)
-        
-        # Sync with Postgres (New primary database)
-        postgres_sync_count = excel_manager.sync_with_postgres_prisoners(db_postgres)
-        
-        # Get summary
+
+        # Load from the final path, not the staging one, so get_summary()'s
+        # file_path reflects where this data actually lives going forward.
+        excel_manager.load_excel(str(active_map_path))
+
+        letters_sync_count = excel_manager.sync_with_letter_db(db)
+
+        db_session = SessionLocal()
+        try:
+            postgres_sync_count = excel_manager.sync_with_postgres_prisoners(db_session)
+        finally:
+            db_session.close()
+
+        staging_path.unlink(missing_ok=True)
+
         summary = excel_manager.get_summary()
-        summary["synced_letters"] = sync_count
+        summary["synced_letters"] = letters_sync_count
         summary["synced_postgres_prisoners"] = postgres_sync_count
-        
-        return {
-            "message": "Excel file uploaded and processed successfully",
-            "summary": summary
-        }
-        
+
+        return {"message": "Upload applied successfully", "summary": summary}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
