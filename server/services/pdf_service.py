@@ -1,6 +1,5 @@
 import logging
 import io
-from typing import Optional, Dict, Any
 from datetime import datetime
 
 from reportlab.lib.pagesizes import letter
@@ -99,76 +98,5 @@ class PDFService:
         doc.build(elements)
         buffer.seek(0)
         buffer.name = f"letter_{submission.id}.pdf"
-        return buffer
-
-    def generate_envelope_pdf(self, prisoner: Dict[str, Any], return_address: Optional[Dict[str, Any]] = None) -> io.BytesIO:
-        """
-        Generates a #10 Envelope PDF.
-        """
-        # Standard #10 envelope size: 9.5" x 4.125"
-        envelope_size = (9.5 * inch, 4.125 * inch)
-        
-        buffer = io.BytesIO()
-        
-        # Canvas based approach for fixed positioning on envelope
-        from reportlab.pdfgen import canvas
-        c = canvas.Canvas(buffer, pagesize=envelope_size)
-        width, height = envelope_size
-        
-        # Return Address (Top Left)
-        c.setFont("Helvetica", 10)
-        pad = 0.3 * inch
-        if return_address:
-            # Custom return address
-            lines = [
-                return_address.get('name', 'California Prisoner Outreach Program'),
-                return_address.get('address', 'PO Box 12345'),
-                f"{return_address.get('city', 'Sacramento')}, {return_address.get('state', 'CA')} {return_address.get('zip', '95814')}"
-            ]
-        else:
-            # Default Organization Address
-            lines = [
-                "California Prisoner Outreach Program",
-                "PO Box 9876",
-                "Oakland, CA 946xx" # Placeholder
-            ]
-            
-        y = height - pad
-        for line in lines:
-            c.drawString(pad, y, line)
-            y -= 12
-            
-        # Recipient Address (Center)
-        # Standard #10 window is roughly 4" from left, 2" from bottom, but we are printing ON envelope, so center it.
-        # Center x ~ 4.5 inch, y ~ 2.5 inch
-        c.setFont("Helvetica-Bold", 12)
-        
-        recip_x = 4.0 * inch
-        recip_y = 2.5 * inch
-        
-        # Prisoner Name
-        name = f"{prisoner.get('first_name', '')} {prisoner.get('last_name', '')}".strip()
-        cpid = prisoner.get('cpid', '')
-        # Usually standard format: NAME, CDC#
-        # Some facilities require specific format.
-        
-        recipient_lines = [
-            f"{name} {prisoner.get('cdcr_number') or cpid}",
-            prisoner.get('housing') or '',
-            prisoner.get('facility') or '',
-            prisoner.get('address') or '',
-            f"{prisoner.get('city', '')}, {prisoner.get('state', '')} {prisoner.get('zip', '')}"
-        ]
-        
-        # Filter empty lines
-        recipient_lines = [L for L in recipient_lines if L]
-        
-        for line in recipient_lines:
-            c.drawString(recip_x, recip_y, line)
-            recip_y -= 14
-            
-        c.save()
-        buffer.seek(0)
-        buffer.name = f"envelope_{cpid}.pdf"
         return buffer
 

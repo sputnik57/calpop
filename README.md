@@ -77,6 +77,9 @@ npm run dev
 - `server/migrations/` — Alembic schema migrations
 - `docker-compose.yml` — container orchestration
 - `implementation_plan.md` — living roadmap and current project status
+- `docs/pii_sanitization_checklist.md` — run before pushing after a session
+  that touched real data, before making anything public, or before handing
+  this project to another user
 
 ## Status
 

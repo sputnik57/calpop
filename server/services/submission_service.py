@@ -1,6 +1,9 @@
 from datetime import datetime
 import hashlib
-from typing import List, Optional, Tuple, Any
+import logging
+from typing import Dict, List, Optional, Tuple, Any
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.orm import Session, selectinload
 
@@ -86,6 +89,48 @@ class SubmissionService:
             raise RuntimeError("Artifact service not configured")
         return self.artifact_service
 
+    def resolve_prisoner_for_mailing(self, prisoner_cpid: str) -> Dict[str, Any]:
+        """
+        Build the normalized prisoner dict EnvelopeService expects (first_name,
+        last_name, cdcr_number, address, city, state, zip, housing, facility,
+        safety_classification), regardless of which backing store has the data.
+
+        Prefers the Excel vault (the only place CDCR numbers and the Unsafe?
+        flag currently live); falls back to the Postgres Prisoner row, which
+        has no CDCR number but does have address/safety_classification. If
+        neither source has a usable safety classification, EnvelopeService's
+        own fail-safe (unknown -> "unsafe") is what actually protects against
+        a wrong/identifying sender address, not this function.
+
+        Takes just a CPID (not a Submission) so it's directly reusable by
+        batch printing, which needs to know each prisoner's classification
+        up front to route their envelope into the right merged PDF.
+        """
+        from globals import excel_manager
+        from db.models import Prisoner
+
+        prisoner_details = excel_manager.resolve_name_from_cpid(prisoner_cpid)
+        if prisoner_details:
+            return prisoner_details
+
+        prisoner = self.db.query(Prisoner).filter(Prisoner.cpid == prisoner_cpid).first()
+        if not prisoner:
+            raise ValueError(f"No prisoner record for CPID {prisoner_cpid}")
+
+        return {
+            "cpid": prisoner.cpid,
+            "cdcr_number": None,  # not tracked in Postgres today -- Excel vault only
+            "first_name": prisoner.first_name,
+            "last_name": prisoner.last_name,
+            "address": prisoner.address or "",
+            "city": prisoner.city or "",
+            "state": prisoner.state or "",
+            "zip": prisoner.zip or "",
+            "housing": "",  # not tracked in Postgres today
+            "facility": prisoner.facility or "",
+            "safety_classification": (prisoner.safety_classification or "").strip().lower(),
+        }
+
     # ------------------------------------------------------------------
     # CRUD & listing helpers
     # ------------------------------------------------------------------
@@ -93,8 +138,18 @@ class SubmissionService:
         self,
         sponsor_id: int,
         data: SubmissionCreate,
+        require_assignment: bool = True,
     ) -> Submission:
-        self._require_assignment(data.letter_id, sponsor_id)
+        """
+        require_assignment=False is for admin-authored bulk correspondence
+        (e.g. form "wait letters" sent to prisoners who have no sponsor yet --
+        there's no Assignment to check because there's no sponsor to assign).
+        Only set this from a context that has already verified the actor is
+        an admin, not a sponsor -- a sponsor bypassing this check would be
+        able to submit correspondence for someone else's assigned sponsee.
+        """
+        if require_assignment:
+            self._require_assignment(data.letter_id, sponsor_id)
 
         submission = Submission(
             letter_id=data.letter_id,
@@ -333,26 +388,8 @@ class SubmissionService:
         elif fmt == "envelope":
             if not self.envelope_service:
                 raise RuntimeError("Envelope service not configured")
-            
-            # Need prisoner details from Excel manager since they might be sensitive
-            from globals import excel_manager
-            prisoner_cpid = submission.letter.prisoner_cpid
-            prisoner_details = excel_manager.resolve_name_from_cpid(prisoner_cpid)
-            
-            # Fallback if no details
-            if not prisoner_details:
-                # Use basic info from DB if possible or error
-                # For now error as before
-                 if not submission.letter.prisoner:
-                     raise ValueError(f"No prisoner record for letter {submission.letter_id}")
-                 # Minimal dict from ORM
-                 prisoner_details = {
-                     "first_name": submission.letter.prisoner.first_name,
-                     "last_name": submission.letter.prisoner.last_name,
-                     "cpid": submission.letter.prisoner.cpid,
-                     # we might miss address here if it's only in excel
-                 }
 
+            prisoner_details = self.resolve_prisoner_for_mailing(submission.letter.prisoner_cpid)
             dest = self.envelope_service.generate_envelope(submission_id, prisoner_details)
             media_type = "application/pdf"
         else:
@@ -413,24 +450,8 @@ class SubmissionService:
         elif fmt == "envelope":
             if not self.envelope_service:
                 raise RuntimeError("Envelope service not configured")
-            
-            # Need prisoner details from Excel manager since they might be sensitive
-            from globals import excel_manager
-            prisoner_cpid = submission.letter.prisoner_cpid
-            prisoner_details = excel_manager.resolve_name_from_cpid(prisoner_cpid)
-            
-            # Fallback if no details
-            if not prisoner_details:
-                # Use basic info from DB if possible or error
-                if not submission.letter.prisoner:
-                    raise ValueError(f"No prisoner record for letter {submission.letter_id}")
-                # Minimal dict from ORM
-                prisoner_details = {
-                    "fName": submission.letter.prisoner.first_name,
-                    "lName": submission.letter.prisoner.last_name,
-                    "cpid": submission.letter.prisoner.cpid,
-                }
 
+            prisoner_details = self.resolve_prisoner_for_mailing(submission.letter.prisoner_cpid)
             dest = self.envelope_service.generate_envelope(submission.id, prisoner_details)
             media_type = "application/pdf"
         else:

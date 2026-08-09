@@ -181,20 +181,53 @@ class ExcelMapManager:
             
             if not matches.empty:
                 record = matches.iloc[0]
-                resolved_cpid = str(record.get(cpid_col, ''))
-                resolved_cdcr = str(record.get('CDCRno', ''))
-                
-                # If they are different, we have a successful link!
+
+                def clean(col: str) -> str:
+                    # pandas represents a blank Excel cell as float NaN, not ''.
+                    # str(nan) == 'nan' (and NaN is truthy in Python, so `or ''`
+                    # doesn't catch it either) -- without pd.isna() here, every
+                    # blank cell silently becomes the literal string "nan".
+                    val = record.get(col, '')
+                    return '' if pd.isna(val) else str(val).strip()
+
+                resolved_cpid = clean(cpid_col)
+                resolved_cdcr = clean('CDCRno')
+                address = clean('address')
+                city = clean('city')
+                state = clean('state')
+                zip_code = clean('zip')
+
+                # Safety classification. Blank/'N' matches the roster's existing
+                # convention (only flagged exceptions are marked unsafe) and maps
+                # to "safe". Anything else unrecognized/garbled falls through to
+                # "unsafe" as a fail-safe -- an envelope with the generic sender
+                # address for a safe prisoner is a non-issue, but the reverse (an
+                # identifying sender address reaching a prisoner for whom that's
+                # dangerous) is not a mistake this can afford to make silently.
+                unsafe_flag = clean('Unsafe?').upper()
+                if unsafe_flag in ('N', 'NO', 'FALSE', '0', 'SAFE', ''):
+                    safety_classification = 'safe'
+                else:
+                    # Covers 'Y'/'YES'/'TRUE'/'1'/'UNSAFE' and anything unrecognized.
+                    safety_classification = 'unsafe'
+
+                facility = clean('facility') or clean('Prison')
+
                 return {
                     'cpid': resolved_cpid,
                     'cdcr_number': resolved_cdcr,
-                    'first_name': str(record.get('fName', '')),
-                    'last_name': str(record.get('lName', '')),
-                    'full_address': f"{record.get('address', '')} {record.get('city', '')} {record.get('state', '')} {record.get('zip', '')}".strip(),
-                    'housing': str(record.get('housing', '')),
-                    'facility': str(record.get('facility', record.get('Prison', '')))
+                    'first_name': clean('fName'),
+                    'last_name': clean('lName'),
+                    'address': address,
+                    'city': city,
+                    'state': state,
+                    'zip': zip_code,
+                    'full_address': f"{address} {city} {state} {zip_code}".strip(),
+                    'housing': clean('housing'),
+                    'facility': facility,
+                    'safety_classification': safety_classification,
                 }
-            
+
             return None
         except Exception as e:
             logger.error(f"Error resolving ID {cpid}: {str(e)}")

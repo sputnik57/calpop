@@ -4,7 +4,7 @@ from pathlib import Path
 
 from api.deps import get_db, get_db_user
 from auth.dependencies import require_admin_or_sponsor
-from auth.models import UserContext
+from auth.models import ROLE_ADMIN, UserContext
 from schemas.batch import BatchLetterCreate, BatchResponse
 from services.batch_service import BatchService
 from services.letter_service import LetterService
@@ -41,6 +41,6 @@ def create_batch_letters(
 ):
     service = _batch_service(db)
     try:
-        return service.process_batch(payload, author_id=db_user.id)
+        return service.process_batch(payload, author_id=db_user.id, is_admin=user.has_role(ROLE_ADMIN))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

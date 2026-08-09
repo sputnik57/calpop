@@ -112,13 +112,31 @@ export function PrisonersPage() {
                             >
                                 <ExternalLink className="w-4 h-4" /> Download Letters PDF
                             </a>
-                            <a
-                                href={batchResult.merged_envelope_url}
-                                target="_blank"
-                                className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10"
-                            >
-                                <ExternalLink className="w-4 h-4" /> Download Envelopes PDF
-                            </a>
+
+                            {/* Deliberately two separate downloads, never merged -- these use
+                                different sender addresses on the envelope and must never be
+                                printed as one combined run. */}
+                            {batchResult.merged_envelope_url_safe && (
+                                <a
+                                    href={batchResult.merged_envelope_url_safe}
+                                    target="_blank"
+                                    className="w-full py-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/10"
+                                >
+                                    <ExternalLink className="w-4 h-4" /> Download SAFE Envelopes PDF
+                                </a>
+                            )}
+                            {batchResult.merged_envelope_url_unsafe && (
+                                <a
+                                    href={batchResult.merged_envelope_url_unsafe}
+                                    target="_blank"
+                                    className="w-full py-3 bg-red-800 hover:bg-red-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-500/10"
+                                >
+                                    <ExternalLink className="w-4 h-4" /> Download UNSAFE Envelopes PDF
+                                </a>
+                            )}
+                            {!batchResult.merged_envelope_url_safe && !batchResult.merged_envelope_url_unsafe && (
+                                <p className="text-xs text-slate-500 italic">No envelope PDFs were generated for this batch.</p>
+                            )}
                         </div>
 
                         <button

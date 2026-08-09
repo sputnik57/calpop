@@ -92,6 +92,31 @@ class Settings(BaseSettings):
         120.0, description="Timeout in seconds for local Ollama OCR requests.",
     )
     
+    # Return-address blocks for outgoing envelopes. Two variants, never one:
+    # "safe" uses the org's real identifying name; "unsafe" must contain no
+    # substring that identifies the program's nature (e.g. no "SAA") for
+    # prisoners where that association could put them at risk. Configured
+    # here (not hardcoded in envelope_service.py) since the org's own
+    # wording is the one thing here that should never require a code change.
+    envelope_sender_name_safe: str = Field(
+        "SCISAA", description="Return-address name line used for prisoners classified 'safe'."
+    )
+    envelope_sender_attn_safe: Optional[str] = Field(
+        "Attn: Calif. Prisoner Outreach Program",
+        description="Optional extra return-address line for the 'safe' variant.",
+    )
+    envelope_sender_name_unsafe: str = Field(
+        "Calif. Prisoner Outreach Program",
+        description="Return-address name line used for prisoners classified 'unsafe' (or unknown). "
+        "Must not contain any substring identifying the program's specific nature.",
+    )
+    envelope_sender_address_line1: str = Field(
+        "PO Box 57648", description="Return-address street/box line, shared by both variants."
+    )
+    envelope_sender_city_state_zip: str = Field(
+        "Sherman Oaks, CA 91413", description="Return-address city/state/zip, shared by both variants."
+    )
+
     library_curriculum_root: Optional[Path] = Field(
         None, description="Path to curriculum documents and templates."
     )
