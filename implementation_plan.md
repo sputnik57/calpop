@@ -31,7 +31,7 @@ Quick index — full explanation for each phase is in **Detailed Roadmap** below
 | 5 | OCR & prisoner matching workstation | ⚠️ |
 | 6 | Redaction pipeline & scoring gate | ❓ |
 | 7 | Assignments & sponsor portal UX | ❓ |
-| 8 | Envelope printing & Batch Processing | ❓ |
+| 8 | Envelope printing & Batch Processing | ⚠️ |
 | 9 | OneDrive sync & reconciliation | ❓ |
 | 10 | Frontend app build-out | ❓ |
 | 11 | Security hardening & compliance | 🔄 |
@@ -114,7 +114,8 @@ If needed, requirements.txt packages are stored in mamba enviornment named calpo
 
 ### Phase 8 — Envelope Printing & Queue Management
 - **Goal:** Batch envelope generation with safety-aware templates.
-- **Status:** ❓ Unverified. Needs re-verification.
+- **Status:** ⚠️ Real and verified live end-to-end (09Aug2026), with caveats. Batch printing generates two separate merged PDFs -- safe and unsafe -- with the return address controlled by config (`.env`), never hardcoded, and a fail-safe default to the generic/unsafe address whenever a prisoner's classification is missing or unrecognized. Verified by reading the actual rendered output of both variants against real roster data: correct recipient info, correct sender block per classification, zero occurrence of "SAA" anywhere in the unsafe variant. Along the way, found and fixed four more pre-existing bugs blocking this path entirely: a broken recipient-data pipeline (mismatched dict keys meant every real envelope printed with a blank recipient section), a pandas NaN bug silently misclassifying every prisoner with a blank `Unsafe?` cell as unsafe, an invalid `letterstatus` enum value in batch letter creation, a no-op migration stub that never actually added `"envelope"` to the `submissionartifacttype` Postgres enum, and a missing `logger` import that turned an intended soft-fail into a hard crash (this one broke `test_submission_lifecycle`; fixed and confirmed the full suite passes). **Not a clean ✅:** queue dashboard / job-queue UI from the original Phase 8 goal doesn't exist -- batch runs are synchronous, no progress tracking or retry UI.
+- **Also added:** an admin-only bypass for the sponsor-assignment check on batch submissions, for the real workflow of sending form "wait letters" to prisoners who have no sponsor yet (so there's no assignment to require). Scoped to admin role specifically -- a sponsor running a batch still must actually be assigned to every prisoner in it, otherwise batch mode would let a sponsor submit correspondence for someone else's assigned sponsee.
 
 ### Phase 9 — OneDrive Sync & Reconciliation
 - **Goal:** Automated push/pull between Postgres artifacts and sponsor folders.
