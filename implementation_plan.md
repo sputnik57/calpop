@@ -73,6 +73,60 @@ If needed, requirements.txt packages are stored in mamba enviornment named calpo
 
 **Explicitly NOT a finding, clarified by the project owner:** the Caesar-cipher CPID scheme (`core/cipher.py`) is a human-communication convention (how sponsors/staff refer to a sponsee without using their real name), not a claimed security control. It stays as-is. It is unrelated to, and does not substitute for, the computer-security items above.
 
+**Added 09/10Aug2026, worth its own callout — a git-history PII leak, not just a working-tree one:** two already-pushed commits had real CPID/CDCR numbers (fixed forward in a later commit, but never removed from history — the mistake this section is about was previously assumed to be fully closed once the working tree was clean, which turned out to be wrong). Found via a full `git log --all -p` scan, not the working-tree-only scan used until then. Fixed with `git-filter-repo` (surgical replace, all other commit messages preserved) + a force-push, verified afterward from an independent fresh clone of GitHub, not just by trusting the push output. `docs/pii_sanitization_checklist.md` now has a Step 5 covering exactly this, since scanning history is a heavier, once-per-session operation, not something to repeat after every commit.
+
+## Envelope Mgt (new work, 09/10Aug2026 — not one of the original 12 SRS phases)
+
+Came out of a direct requirements walkthrough with the project owner, not the
+original SRS — a planned 5-tab UI reorg (Dashboard / Envelope Mgt / Letter
+Mgt / DB Mgt / Sponsors) surfaced real, previously-undocumented process
+detail. The full 12-stage (+ terminal codes) program process this is based
+on is captured in **`docs/status_workflow.md`** — read that before touching
+this area again; `Letter.status`'s current 12-value enum is a rough,
+deliberately-incomplete stand-in for that real process, not yet reconciled.
+
+- **Status:** ✅ Built and verified live (10Aug2026). An envelope scan now
+  routes to one of two queues based on the prisoner's authoritative
+  `Sponsor` value (synced from Excel to a new `Prisoner.sponsor_name`
+  column, plaintext/unencrypted on purpose since it needs to stay cheaply
+  queryable): no real external sponsor (blank, or the project owner's
+  `"Course"` sentinel for self-handled cases) → the admin write queue
+  (`queued_for_writing`); a real named sponsor → the letter-scan/OneDrive
+  queue (`queued_for_letter_scan`), built out later in Letter Mgt.
+- Classification (`classify_sponsor_name`/`resolve_envelope_routing_status`
+  in `services/letter_service.py`) deliberately doesn't hardcode a sentinel
+  list — it distinguishes real names (title-case) from status-code-looking
+  entries (short all-caps tokens) and refuses to guess on anything that
+  doesn't clearly fit either. Verified against all 16 real roster records:
+  correctly handled 2 real sponsors and 4 "Course"/blank variants, and
+  correctly flagged 7 real `DROP`/`CANX`-style entries as ambiguous rather
+  than silently misrouting them.
+- Ambiguous cases require an explicit human decision: `POST
+  /api/letters/scan/` returns `409` with the raw sponsor value and a
+  `routing_status_override` field to resubmit with. Verified live: `409`
+  without an override, success with one, both confident cases auto-route
+  correctly without needing one.
+- New `POST /api/prisoners` for the not-found branch — generates a random,
+  unique CPID (not derived from name/CDCR#, unlike the legacy
+  `core/letter_db.py` generator, which has a bug: it can only ever produce 2
+  real letters from 2 initials, padded with `'X'`).
+- `postmarked_at` and `picked_up_at` (PO-pickup date) now actually get
+  populated — both columns already existed in `LetterDates` but nothing
+  wrote to them. `postmarked_at` is a best-effort OCR guess, always
+  human-confirmable, same discipline as everywhere else OCR is used here;
+  `picked_up_at` is always a manual entry (staff's handwritten note, distinct
+  from the postal service's own postmark).
+- `GET /api/prisoners` and the Excel export now include `sponsor_name` and a
+  computed (not stored) `letters_received_count`.
+- Found and fixed along the way: a bug where the Postgres enum had the two
+  new statuses (confirmed via raw SQL) but the SQLAlchemy `Enum()`
+  definition in `db/models.py` still had the old hardcoded list, so the ORM
+  itself rejected them until both were updated.
+- **Not done yet:** the frontend side of this (add-new-person UI, the
+  ambiguous-routing prompt, moving batch envelope printing out of
+  `PrisonersPage.jsx` into a real Envelope Mgt tab) — this session was
+  backend-only, verified via direct API calls, not through the UI.
+
 ## Detailed Roadmap
 
 ### Phase 0 — Foundation & Development Environment
