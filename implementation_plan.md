@@ -122,10 +122,47 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
   new statuses (confirmed via raw SQL) but the SQLAlchemy `Enum()`
   definition in `db/models.py` still had the old hardcoded list, so the ORM
   itself rejected them until both were updated.
-- **Not done yet:** the frontend side of this (add-new-person UI, the
-  ambiguous-routing prompt, moving batch envelope printing out of
-  `PrisonersPage.jsx` into a real Envelope Mgt tab) — this session was
-  backend-only, verified via direct API calls, not through the UI.
+- **Frontend side built 18Aug2026** (was the "not done yet" below): real
+  5-tab nav (`Layout.jsx`/`App.jsx`), `EnvelopeMgtPage.jsx` with Scan & Find
+  Person (wraps existing `IntakeArea`), Add New Person (wired to `POST
+  /api/prisoners`), and Print Envelopes (batch logic moved out of
+  `PrisonersPage.jsx` as planned). `PrisonersPage.jsx` (DB Mgt) got a
+  per-record Edit → Update Person form, calling a `PATCH
+  /api/prisoners/{cpid}` endpoint that doesn't exist yet on purpose (fails
+  with an explicit "not wired up yet" message, not a silent no-op). Whole
+  app recolored to a CDCR-derived palette — see
+  `docs/color_palette_options.md`. Ambiguous-routing prompt (the `409` +
+  `routing_status_override` flow) still has no frontend UI.
+- Also 18Aug2026: the roster has more columns than Postgres was capturing
+  (`Stage`, `Intake #`, contract/verification/language/notes/BPH-date
+  fields) — they were being read into an in-memory pandas dataframe for
+  dashboard stats but never persisted. Migration `525e61add4e2` adds them
+  to `Prisoner`; `excel_manager.py`'s sync/diff path now carries them
+  through. `review_notes`, `date_of_contract`, and `date_sponsor_assigned`
+  are encrypted at rest; `bph_date` and everything else in that batch is
+  plaintext (matches the existing `sponsor_name`/`Stage` precedent for
+  fields that need to stay queryable/displayable without a decrypt pass).
+- **Scoped, not built (requested 18Aug2026, explicitly deferred to a later
+  session)** — closing the loop from scan to print:
+  1. On a confirmed scan (after the operator picks the right candidate in
+     `ScantronStation.jsx`, not at raw-OCR time), attempt an automated
+     regex/fuzzy match of the on-file address against the raw OCR text
+     blob, but still require human verification before trusting it — same
+     "nothing is auto-applied" discipline already used for candidate
+     matching and postmark-date extraction. No address-line extraction
+     exists yet; OCR only returns an unstructured text blob today, so this
+     needs new parsing, not just a comparison.
+  2. On confirmation, increment that prisoner's `letter_exchange_count`
+     (`letter exchange (received only)` in the roster).
+  3. Add that prisoner (with the verified address) to a new **print
+     queue** — mechanism not yet decided (a flag/timestamp column on
+     `Prisoner`, e.g. `queued_for_printing_at`, is the likely simplest
+     fit with the existing schema, vs. a separate join table).
+  4. Envelope Mgt's **Print Envelopes** tab changes from showing the full
+     roster (current behavior, confirmed live 18Aug2026 — every sponsee is
+     listed regardless of scan status) to showing only the print queue,
+     with a search box to manually find and add someone who needs an
+     envelope without having come through a scan.
 
 ## Detailed Roadmap
 
