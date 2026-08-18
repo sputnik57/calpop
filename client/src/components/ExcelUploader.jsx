@@ -11,6 +11,18 @@ const FIELD_LABELS = {
     zip: 'Zip',
     cdcr_number: 'CDCR #',
     safety_classification: 'Safety',
+    intake_number: 'Intake #',
+    stage: 'Stage',
+    cdcr_db_verified: 'CDCR DB Verified',
+    contract_status: 'Contract',
+    date_of_contract: 'Date of Contract',
+    needs_green_book: 'Needs Green Book?',
+    language: 'Language',
+    review_notes: 'Review Notes',
+    date_sponsor_assigned: 'Date Sponsor Assigned',
+    letter_exchange_count: 'Letter Exchange Count',
+    step_received_count: 'Step Received Count',
+    bph_date: 'BPH Date',
 }
 
 function ExcelUploader({ onUploadSuccess }) {
@@ -93,14 +105,14 @@ function ExcelUploader({ onUploadSuccess }) {
     const hasChanges = diff && (diff.new.length > 0 || diff.changed.length > 0)
 
     return (
-        <div className="bg-slate-800 border border-slate-700 p-6 rounded-xl">
-            <h3 className="text-lg font-bold text-slate-100 mb-4">
+        <div className="bg-white border border-calpop-navy/15 shadow-sm p-6 rounded-xl">
+            <h3 className="text-lg font-bold text-calpop-ink mb-4">
                 Excel Roster Upload
             </h3>
 
             <div className="space-y-4">
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label className="block text-sm font-medium text-calpop-navy mb-2">
                         Upload Prisoner Excel File
                     </label>
                     <input
@@ -108,51 +120,51 @@ function ExcelUploader({ onUploadSuccess }) {
                         accept=".xlsx,.xls"
                         onChange={handleFileUpload}
                         disabled={uploading || applying}
-                        className="block w-full text-sm text-slate-400
+                        className="block w-full text-sm text-calpop-navy
                      file:mr-4 file:py-2 file:px-4
                      file:rounded-full file:border-0
                      file:text-sm file:font-semibold
-                     file:bg-cyan-600 file:text-white
-                     hover:file:bg-cyan-500
+                     file:bg-calpop-blue file:text-white
+                     hover:file:brightness-95
                      disabled:opacity-50"
                     />
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-calpop-navy">
                         The database is the source of truth -- this only stages
                         changes for review. Nothing is applied until you confirm below.
                     </p>
                 </div>
 
                 {uploading && (
-                    <div className="flex items-center space-x-2 text-cyan-400">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-400"></div>
+                    <div className="flex items-center space-x-2 text-calpop-blue">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-calpop-blue"></div>
                         <span className="text-sm">Comparing against the database...</span>
                     </div>
                 )}
 
                 {error && (
-                    <div className="bg-red-900/30 border border-red-800 rounded-md p-3">
-                        <h4 className="text-sm font-medium text-red-400">Error</h4>
-                        <p className="text-sm text-red-300 mt-1">{error}</p>
+                    <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                        <h4 className="text-sm font-medium text-red-700">Error</h4>
+                        <p className="text-sm text-red-600 mt-1">{error}</p>
                     </div>
                 )}
 
                 {diff && (
-                    <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 space-y-4">
+                    <div className="bg-calpop-bg border border-calpop-navy/15 rounded-lg p-4 space-y-4">
                         <div className="flex items-center gap-4 text-xs font-mono uppercase">
-                            <span className="text-emerald-400">{diff.new.length} new</span>
-                            <span className="text-amber-400">{diff.changed.length} changed</span>
-                            <span className="text-slate-500">{diff.unchanged_count} unchanged</span>
+                            <span className="text-calpop-olive">{diff.new.length} new</span>
+                            <span className="text-calpop-accent">{diff.changed.length} changed</span>
+                            <span className="text-calpop-navy">{diff.unchanged_count} unchanged</span>
                             {diff.missing_from_file.length > 0 && (
-                                <span className="text-slate-500">{diff.missing_from_file.length} in DB, not in file</span>
+                                <span className="text-calpop-navy">{diff.missing_from_file.length} in DB, not in file</span>
                             )}
                         </div>
 
                         {diff.new.length > 0 && (
                             <div>
-                                <h5 className="text-xs font-bold text-emerald-400 uppercase mb-2">New records</h5>
+                                <h5 className="text-xs font-bold text-calpop-olive uppercase mb-2">New records</h5>
                                 <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {diff.new.map(r => (
-                                        <div key={r.cpid} className="text-xs font-mono text-slate-300 bg-emerald-900/20 border border-emerald-900/40 rounded px-2 py-1">
+                                        <div key={r.cpid} className="text-xs font-mono text-calpop-ink bg-calpop-olive/10 border border-calpop-olive/25 rounded px-2 py-1">
                                             {r.cpid} — {r.first_name} {r.last_name}
                                         </div>
                                     ))}
@@ -162,17 +174,17 @@ function ExcelUploader({ onUploadSuccess }) {
 
                         {diff.changed.length > 0 && (
                             <div>
-                                <h5 className="text-xs font-bold text-amber-400 uppercase mb-2">Changed records</h5>
+                                <h5 className="text-xs font-bold text-calpop-accent uppercase mb-2">Changed records</h5>
                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                     {diff.changed.map(r => (
-                                        <div key={r.cpid} className="text-xs bg-amber-900/20 border border-amber-900/40 rounded px-2 py-2">
-                                            <div className="font-mono text-slate-300 mb-1">{r.cpid}</div>
+                                        <div key={r.cpid} className="text-xs bg-calpop-accent/10 border border-calpop-accent/25 rounded px-2 py-2">
+                                            <div className="font-mono text-calpop-ink mb-1">{r.cpid}</div>
                                             {Object.entries(r.changes).map(([field, { old, new: newVal }]) => (
-                                                <div key={field} className="text-slate-400 pl-2">
+                                                <div key={field} className="text-calpop-navy pl-2">
                                                     {FIELD_LABELS[field] || field}:{' '}
-                                                    <span className="text-red-400 line-through">{old || '(blank)'}</span>
+                                                    <span className="text-red-600 line-through">{old || '(blank)'}</span>
                                                     {' → '}
-                                                    <span className="text-emerald-400">{newVal || '(blank)'}</span>
+                                                    <span className="text-calpop-olive">{newVal || '(blank)'}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -182,7 +194,7 @@ function ExcelUploader({ onUploadSuccess }) {
                         )}
 
                         {diff.missing_from_file.length > 0 && (
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-calpop-navy">
                                 {diff.missing_from_file.length} record(s) in the database aren't in this file.
                                 They will NOT be deleted or modified -- only new/changed records above will be applied.
                             </p>
@@ -192,14 +204,14 @@ function ExcelUploader({ onUploadSuccess }) {
                             <button
                                 onClick={handleApply}
                                 disabled={applying || !hasChanges}
-                                className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold"
+                                className="bg-calpop-accent hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold"
                             >
                                 {applying ? 'Applying...' : hasChanges ? 'Apply changes' : 'Nothing to apply'}
                             </button>
                             <button
                                 onClick={() => setPreview(null)}
                                 disabled={applying}
-                                className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-lg text-sm font-bold"
+                                className="bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-navy px-4 py-2 rounded-lg text-sm font-bold border border-calpop-navy/15"
                             >
                                 Cancel
                             </button>
@@ -208,9 +220,9 @@ function ExcelUploader({ onUploadSuccess }) {
                 )}
 
                 {status && (
-                    <div className="bg-emerald-900/30 border border-emerald-800 rounded-md p-3">
-                        <h4 className="text-sm font-medium text-emerald-400">Applied successfully</h4>
-                        <p className="text-sm text-emerald-300 mt-1">{status.message}</p>
+                    <div className="bg-calpop-olive/10 border border-calpop-olive/25 rounded-md p-3">
+                        <h4 className="text-sm font-medium text-calpop-olive">Applied successfully</h4>
+                        <p className="text-sm text-calpop-ink mt-1">{status.message}</p>
                     </div>
                 )}
             </div>

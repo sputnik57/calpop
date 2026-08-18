@@ -7,6 +7,8 @@ import { Inbox } from './pages/Inbox'
 import { ResponseStation } from './pages/ResponseStation'
 import { IntakeArea } from './pages/ScantronStation'
 import { PrisonersPage } from './pages/PrisonersPage'
+import { EnvelopeMgtPage } from './pages/EnvelopeMgtPage'
+import { SponsorsPage } from './pages/SponsorsPage'
 
 function App() {
     return (
@@ -20,7 +22,9 @@ function App() {
                     <Route path="letters/new" element={<LetterEditor />} />
                     <Route path="letters/:id" element={<LetterEditor />} />
                     <Route path="scantron" element={<IntakeArea />} />
+                    <Route path="envelope" element={<EnvelopeMgtPage />} />
                     <Route path="prisoners" element={<PrisonersPage />} />
+                    <Route path="sponsors" element={<SponsorsPage />} />
                 </Route>
             </Routes>
         </BrowserRouter>

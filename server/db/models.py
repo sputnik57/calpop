@@ -105,6 +105,25 @@ class Prisoner(Base, TimestampMixin):
     # sponsor" -- not a real person's name.
     sponsor_name: Mapped[Optional[str]] = mapped_column(Text)
 
+    # -- Added 18Aug2026 to stop dropping roster columns the Excel sheet
+    # already had. Encryption follows the same rule as everything above:
+    # plaintext only for short categorical/administrative values or counts
+    # with no narrative content and no other identifying power; encrypt
+    # anything else tied to a specific person (dates, free text), even with
+    # no current query need, to match this model's existing default.
+    intake_number: Mapped[Optional[int]] = mapped_column(Integer)  # roster's "Intake #" (sequential contact order), was an untitled column
+    stage: Mapped[Optional[int]] = mapped_column(Integer)  # 12-step program stage; 12 = active sponsee, 2-89 = in program. Plaintext: dashboard stats filter on this directly.
+    cdcr_db_verified: Mapped[Optional[str]] = mapped_column(Text)  # roster's "CDCR db verif" (Y/N)
+    contract_status: Mapped[Optional[str]] = mapped_column(Text)  # roster's "contract" (e.g. "Signed")
+    date_of_contract: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    needs_green_book: Mapped[Optional[str]] = mapped_column(Text)  # roster's "Needs Green book?" (Y/N)
+    language: Mapped[Optional[str]] = mapped_column(Text)
+    review_notes: Mapped[Optional[str]] = mapped_column(EncryptedString)  # free text -- may describe safety/case concerns
+    date_sponsor_assigned: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    letter_exchange_count: Mapped[Optional[int]] = mapped_column(Integer)  # roster's "letter exchange (received only)"
+    step_received_count: Mapped[Optional[int]] = mapped_column(Integer)  # roster's "Step (received only)"
+    bph_date: Mapped[Optional[str]] = mapped_column(Text)  # Board of Parole Hearings date. Plaintext (not encrypted like the fields above) so upcoming hearings can be queried/sorted directly.
+
     letters: Mapped[List["Letter"]] = relationship(back_populates="prisoner")
     assignments: Mapped[List["Assignment"]] = relationship(back_populates="prisoner")
 

@@ -372,6 +372,15 @@ class ExcelMapManager:
         unsafe_flag = (field('Unsafe?') or '').strip().upper()
         safety_classification = 'safe' if unsafe_flag in ('N', 'NO', 'FALSE', '0', 'SAFE', '') else 'unsafe'
 
+        def int_field(col: str) -> Optional[int]:
+            val = row.get(col)
+            if pd.isna(val):
+                return None
+            try:
+                return int(val)
+            except (TypeError, ValueError):
+                return None
+
         # 'housing' (cell/unit, e.g. "E25-B204-1L") and 'Prison' (the actual
         # facility name) are different columns in the roster -- previously
         # conflated (housing was being written into the 'facility' Postgres
@@ -392,6 +401,24 @@ class ExcelMapManager:
             # "Course" (project owner's sentinel, not a real name) and blank
             # both mean "no external sponsor" for Envelope Mgt routing.
             'sponsor_name': field('Sponsor'),
+            # Added 18Aug2026 -- these roster columns were being read into
+            # the in-memory dataframe for dashboard stats but never actually
+            # persisted to Postgres. 'Intake #' is the roster's column for
+            # an untitled sequential "which contact number was this person"
+            # column; falls back to the legacy 'Count' header until sheets
+            # in the wild are renamed.
+            'intake_number': int_field('Intake #') if 'Intake #' in row.index else int_field('Count'),
+            'stage': int_field('Stage'),
+            'cdcr_db_verified': field('CDCR db verif'),
+            'contract_status': field('contract'),
+            'date_of_contract': field('Date of contract'),
+            'needs_green_book': field('Needs Green book?'),
+            'language': field('language'),
+            'review_notes': field('Review notes'),
+            'date_sponsor_assigned': field('Date Sponsor assigned'),
+            'letter_exchange_count': int_field('letter exchange (received only)'),
+            'step_received_count': int_field('Step (received only)'),
+            'bph_date': field('BPH DATE'),
         }
 
     def diff_with_postgres_prisoners(self, db: Session) -> Dict[str, Any]:
@@ -412,6 +439,10 @@ class ExcelMapManager:
         compare_fields = [
             'first_name', 'last_name', 'facility', 'housing',
             'address', 'city', 'state', 'zip', 'cdcr_number', 'safety_classification',
+            'intake_number', 'stage', 'cdcr_db_verified', 'contract_status',
+            'date_of_contract', 'needs_green_book', 'language', 'review_notes',
+            'date_sponsor_assigned', 'letter_exchange_count', 'step_received_count',
+            'bph_date',
         ]
 
         for _, row in self.df.iterrows():

@@ -354,6 +354,18 @@ def list_prisoners(user=Depends(require_admin)):
                 "safety_classification": p.safety_classification,
                 "sponsor_name": p.sponsor_name,
                 "letters_received_count": counts.get(p.cpid, 0),
+                "intake_number": p.intake_number,
+                "stage": p.stage,
+                "cdcr_db_verified": p.cdcr_db_verified,
+                "contract_status": p.contract_status,
+                "date_of_contract": p.date_of_contract,
+                "needs_green_book": p.needs_green_book,
+                "language": p.language,
+                "review_notes": p.review_notes,
+                "date_sponsor_assigned": p.date_sponsor_assigned,
+                "letter_exchange_count": p.letter_exchange_count,
+                "step_received_count": p.step_received_count,
+                "bph_date": p.bph_date,
             }
             for p in prisoners
         ]
@@ -391,6 +403,18 @@ def export_prisoners_excel(user=Depends(require_admin)):
                 "zip": p.zip,
                 "Unsafe?": "Y" if (p.safety_classification or "").strip().lower() == "unsafe" else "",
                 "Sponsor": p.sponsor_name,
+                "Intake #": p.intake_number,
+                "Stage": p.stage,
+                "CDCR db verif": p.cdcr_db_verified,
+                "contract": p.contract_status,
+                "Date of contract": p.date_of_contract,
+                "Needs Green book?": p.needs_green_book,
+                "language": p.language,
+                "Review notes": p.review_notes,
+                "Date Sponsor assigned": p.date_sponsor_assigned,
+                "letter exchange (received only)": p.letter_exchange_count,
+                "Step (received only)": p.step_received_count,
+                "BPH DATE": p.bph_date,
             }
             for p in prisoners
         ]

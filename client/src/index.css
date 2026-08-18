@@ -6,7 +6,7 @@ body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  @apply bg-slate-950 text-slate-100;
+  @apply bg-calpop-bg text-calpop-ink;
 }
 
 /* Premium DOCX & Markdown rendering */

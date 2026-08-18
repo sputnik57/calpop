@@ -235,13 +235,13 @@ export function IntakeArea() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
-                        <Camera className="w-8 h-8 text-emerald-400" />
+                    <h2 className="text-2xl font-bold text-calpop-ink flex items-center gap-3">
+                        <Camera className="w-8 h-8 text-calpop-blue" />
                         Intake Area
                     </h2>
                 </div>
                 {actualRes.w > 0 && (
-                    <div className="bg-slate-800 px-4 py-2 rounded-full border border-slate-700 text-xs font-mono text-cyan-400">
+                    <div className="bg-white px-4 py-2 rounded-full border border-calpop-navy/15 text-xs font-mono text-calpop-blue">
                         {actualRes.w}x{actualRes.h} SOURCE ACTIVE
                     </div>
                 )}
@@ -250,18 +250,18 @@ export function IntakeArea() {
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Control Panel */}
                 <div className="lg:col-span-1 space-y-4">
-                    <div className="p-4 bg-slate-800 rounded-xl border border-slate-700 space-y-4">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                    <div className="p-4 bg-white rounded-xl border border-calpop-navy/15 shadow-sm space-y-4">
+                        <h3 className="text-xs font-bold text-calpop-navy uppercase flex items-center gap-2">
                             <Settings className="w-4 h-4" /> Config
                         </h3>
                         <select
                             value={selectedDeviceId}
                             onChange={(e) => setSelectedDeviceId(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 text-slate-300 text-sm p-2 rounded outline-none"
+                            className="w-full bg-calpop-bg border border-calpop-navy/25 text-calpop-ink text-sm p-2 rounded outline-none"
                         >
                             {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>)}
                         </select>
-                        <button onClick={startCamera} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold">
+                        <button onClick={startCamera} className="w-full py-3 bg-calpop-blue hover:brightness-95 text-white rounded-lg font-bold">
                             {stream ? 'Reconnect' : 'Start Camera'}
                         </button>
                         <div className="relative">
@@ -274,56 +274,76 @@ export function IntakeArea() {
                             />
                             <button
                                 onClick={() => fileInputRef.current.click()}
-                                className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg font-bold flex items-center justify-center gap-2"
+                                className="w-full py-3 bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-ink rounded-lg font-bold flex items-center justify-center gap-2 border border-calpop-navy/15"
                             >
                                 <Upload className="w-4 h-4" /> Upload Image
                             </button>
                         </div>
                     </div>
 
-                    <div className="p-4 bg-slate-800 rounded-xl border border-slate-700 space-y-4">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                    <div className="p-4 bg-white rounded-xl border border-calpop-navy/15 shadow-sm space-y-4">
+                        <h3 className="text-xs font-bold text-calpop-navy uppercase flex items-center gap-2">
                             <Sliders className="w-4 h-4" /> Image Tuning
                         </h3>
                         <div className="space-y-1">
-                            <label className="text-[10px] text-slate-400 font-mono">CONTRAST: {contrast}</label>
-                            <input type="range" min="0.5" max="3" step="0.1" value={contrast} onChange={e => setContrast(e.target.value)} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" />
+                            <label className="text-[10px] text-calpop-navy font-mono">CONTRAST: {contrast}</label>
+                            <input type="range" min="0.5" max="3" step="0.1" value={contrast} onChange={e => setContrast(e.target.value)} className="w-full h-1 bg-calpop-navy/15 rounded-lg appearance-none cursor-pointer accent-calpop-blue" />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[10px] text-slate-400 font-mono">BRIGHTNESS: {brightness}</label>
-                            <input type="range" min="0.5" max="2" step="0.1" value={brightness} onChange={e => setBrightness(e.target.value)} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" />
+                            <label className="text-[10px] text-calpop-navy font-mono">BRIGHTNESS: {brightness}</label>
+                            <input type="range" min="0.5" max="2" step="0.1" value={brightness} onChange={e => setBrightness(e.target.value)} className="w-full h-1 bg-calpop-navy/15 rounded-lg appearance-none cursor-pointer accent-calpop-blue" />
                         </div>
                     </div>
 
                     <button
                         onClick={captureAndRedact}
-                        className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xl shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all active:scale-95"
+                        className="w-full py-5 bg-calpop-accent hover:brightness-95 text-white rounded-2xl font-black text-xl shadow-xl shadow-calpop-accent/20 disabled:opacity-50 transition-all active:scale-95"
                         disabled={(!stream && !uploadedImage) || isCapturing}
                     >
                         {isCapturing ? <Loader2 className="w-7 h-7 animate-spin" /> : 'INGEST & OCR'}
                     </button>
 
                     {lastCapture && !showPreview && (
-                        <button onClick={() => setShowPreview(true)} className="w-full py-2 text-cyan-400 text-xs flex items-center justify-center gap-2 hover:bg-cyan-400/10 rounded border border-dashed border-cyan-400/30">
+                        <button onClick={() => setShowPreview(true)} className="w-full py-2 text-calpop-blue text-xs flex items-center justify-center gap-2 hover:bg-calpop-blue/10 rounded border border-dashed border-calpop-blue/30">
                             <Eye className="w-3 h-3" /> Review Last Scan
                         </button>
                     )}
                 </div>
 
-                {/* Stage Console */}
-                <div id="stage-console" className="lg:col-span-3 relative bg-black rounded-3xl border-4 border-slate-800 overflow-hidden shadow-2xl aspect-video select-none">
-                    {uploadedImage ? (
+                {/* Stage Console. Only goes black once there's real video/image content
+                    to show -- an empty black box otherwise had no design purpose and
+                    read as a jarring dark panel against the light UI. */}
+                <div id="stage-console" className={`lg:col-span-3 relative rounded-3xl border overflow-hidden aspect-video select-none ${
+                    (stream || uploadedImage) ? 'bg-black border-calpop-navy/15 shadow-2xl' : 'bg-calpop-bg border-2 border-dashed border-calpop-navy/25'
+                }`}>
+                    {!stream && !uploadedImage && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-calpop-navy">
+                            <Camera className="w-10 h-10" />
+                            <p className="text-sm">Start the camera or upload an image to begin</p>
+                        </div>
+                    )}
+                    {uploadedImage && (
                         <img
                             src={uploadedImage}
                             alt="Uploaded"
                             className="w-full h-full object-contain"
                             style={{ filter: `brightness(${brightness}) contrast(${contrast})` }}
                         />
-                    ) : (
-                        <video ref={videoRef} autoPlay className="w-full h-full object-contain" style={{ filter: `brightness(${brightness}) contrast(${contrast})` }} />
                     )}
+                    {/* Always mounted (never conditional on `stream`) -- startCamera()
+                        attaches the media stream to this element via videoRef right after
+                        getUserMedia resolves, before the state update that would otherwise
+                        gate its render, so it must already exist in the DOM. */}
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        className={`w-full h-full object-contain ${uploadedImage ? 'hidden' : ''}`}
+                        style={{ filter: `brightness(${brightness}) contrast(${contrast})` }}
+                    />
 
-                    {/* The Crop Box (Cyan) - Resizable */}
+                    {/* The Crop Box (Cyan) - Resizable. Kept as an overlay on the video
+                        stage itself, not a themed panel -- needs strong contrast against
+                        arbitrary camera footage, so it stays outside the light palette. */}
                     {(stream || uploadedImage) && (
                         <div
                             style={{
@@ -392,11 +412,13 @@ export function IntakeArea() {
                         </div>
                     ))}
 
-                    <div className="absolute bottom-4 left-4 flex gap-2">
-                        <button onClick={() => setMasks([...masks, { id: Date.now(), x: crop.x + 10, y: crop.y + 10, w: 150, h: 40 }])} className="bg-slate-900/95 text-white px-4 py-2 rounded-lg text-xs border border-slate-700 flex items-center gap-2 shadow-xl hover:bg-slate-900">
-                            <Square className="w-3 h-3 text-cyan-400" /> Add Redaction
-                        </button>
-                    </div>
+                    {(stream || uploadedImage) && (
+                        <div className="absolute bottom-4 left-4 flex gap-2">
+                            <button onClick={() => setMasks([...masks, { id: Date.now(), x: crop.x + 10, y: crop.y + 10, w: 150, h: 40 }])} className="bg-slate-900/95 text-white px-4 py-2 rounded-lg text-xs border border-slate-700 flex items-center gap-2 shadow-xl hover:bg-slate-900">
+                                <Square className="w-3 h-3 text-cyan-400" /> Add Redaction
+                            </button>
+                        </div>
+                    )}
 
                     <canvas ref={canvasRef} className="hidden" />
                 </div>
@@ -404,60 +426,60 @@ export function IntakeArea() {
 
             {/* PREVIEW MODAL */}
             {showPreview && lastCapture && (
-                <div className="fixed inset-0 z-[100] bg-slate-950/98 flex flex-col items-center p-6 backdrop-blur-xl overflow-hidden">
+                <div className="fixed inset-0 z-[100] bg-calpop-navy/70 flex flex-col items-center p-6 backdrop-blur-sm overflow-hidden">
                     <div className="w-full max-w-6xl flex justify-between items-center mb-4">
                         <div>
-                            <h3 className="text-xl font-bold text-slate-100 flex items-center gap-3">
-                                <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                            <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                                <CheckCircle2 className="w-6 h-6 text-calpop-olive" />
                                 AI Perimeter Analysis
                             </h3>
-                            <p className="text-slate-400 text-xs font-mono uppercase tracking-widest mt-1">Status: {analysis ? 'Scan Complete' : 'Calculating Vectors...'}</p>
+                            <p className="text-white/60 text-xs font-mono uppercase tracking-widest mt-1">Status: {analysis ? 'Scan Complete' : 'Calculating Vectors...'}</p>
                         </div>
-                        <button onClick={() => setShowPreview(false)} className="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-full border border-slate-600">
+                        <button onClick={() => setShowPreview(false)} className="bg-white hover:bg-calpop-bg text-calpop-ink p-2 rounded-full border border-calpop-navy/15">
                             <X className="w-6 h-6" />
                         </button>
                     </div>
 
                     <div className="flex-1 w-full max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden">
                         {/* Image Preview */}
-                        <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-inner flex items-center justify-center p-4 overflow-auto">
+                        <div className="bg-white rounded-2xl border border-calpop-navy/15 shadow-sm flex items-center justify-center p-4 overflow-auto">
                             <img
                                 src={lastCapture.dataUrl}
                                 alt="Capture"
-                                className="shadow-2xl rounded max-w-full h-auto border border-white/10"
+                                className="shadow-md rounded max-w-full h-auto border border-calpop-navy/10"
                             />
                         </div>
 
                         {/* Analysis Panel */}
                         <div className="flex flex-col gap-4 overflow-hidden">
-                            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 flex flex-col h-full overflow-hidden shadow-lg">
-                                <div className="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
-                                    <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest">Extracted Intelligence</h4>
+                            <div className="bg-white rounded-xl border border-calpop-navy/15 p-5 flex flex-col h-full overflow-hidden shadow-sm">
+                                <div className="flex items-center justify-between mb-4 border-b border-calpop-navy/15 pb-3">
+                                    <h4 className="text-xs font-bold text-calpop-blue uppercase tracking-widest">Extracted Intelligence</h4>
                                     {analysis && (
                                         <div className="flex items-center gap-2">
-                                            <div className="h-1 w-20 bg-slate-700 rounded-full overflow-hidden">
+                                            <div className="h-1 w-20 bg-calpop-navy/15 rounded-full overflow-hidden">
                                                 <div
-                                                    className={`h-full ${analysis.confidence > 0.8 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                                    className={`h-full ${analysis.confidence > 0.8 ? 'bg-calpop-olive' : 'bg-calpop-accent'}`}
                                                     style={{ width: `${analysis.confidence * 100}%` }}
                                                 />
                                             </div>
-                                            <span className="text-[10px] font-mono text-slate-500">{Math.round(analysis.confidence * 100)}% Conf.</span>
+                                            <span className="text-[10px] font-mono text-calpop-navy">{Math.round(analysis.confidence * 100)}% Conf.</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto font-mono text-sm text-slate-300 bg-black/30 p-4 rounded-lg border border-black/20 whitespace-pre-wrap leading-relaxed">
+                                <div className="flex-1 overflow-y-auto font-mono text-sm text-calpop-ink bg-calpop-bg p-4 rounded-lg border border-calpop-navy/15 whitespace-pre-wrap leading-relaxed">
                                     {analysis?.text || "Analyzing text structure..."}
                                 </div>
 
-                                <div className="mt-4 pt-4 border-t border-slate-700 space-y-4">
-                                    <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                <div className="mt-4 pt-4 border-t border-calpop-navy/15 space-y-4">
+                                    <div className="bg-calpop-bg rounded-lg p-4 border border-calpop-navy/15">
                                         <div className="flex items-center gap-3 mb-3">
-                                            <Users className="w-5 h-5 text-emerald-400" />
-                                            <h5 className="text-sm font-bold text-slate-200 uppercase tracking-tight">Candidate Matches</h5>
+                                            <Users className="w-5 h-5 text-calpop-olive" />
+                                            <h5 className="text-sm font-bold text-calpop-ink uppercase tracking-tight">Candidate Matches</h5>
                                         </div>
 
-                                        <div className="text-xs text-amber-400/80 mb-3 italic">
+                                        <div className="text-xs text-calpop-accent mb-3 italic">
                                             Nothing is auto-selected. Compare each candidate against the scan on the left, then pick one.
                                         </div>
 
@@ -472,45 +494,45 @@ export function IntakeArea() {
                                                             onClick={() => setConfirmedCpid(c.cpid || '')}
                                                             className={`w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded-lg border transition-colors ${
                                                                 selected
-                                                                    ? 'bg-emerald-500/10 border-emerald-500/50'
-                                                                    : 'bg-slate-800 border-slate-700 hover:border-slate-500'
+                                                                    ? 'bg-calpop-olive/10 border-calpop-olive/50'
+                                                                    : 'bg-white border-calpop-navy/15 hover:border-calpop-navy/30'
                                                             }`}
                                                         >
                                                             <div className="min-w-0">
-                                                                <div className="text-sm font-bold text-slate-100 truncate">
+                                                                <div className="text-sm font-bold text-calpop-ink truncate">
                                                                     {c.first_name} {c.last_name}
                                                                 </div>
-                                                                <div className="text-[11px] text-slate-400 font-mono truncate">
+                                                                <div className="text-[11px] text-calpop-navy font-mono truncate">
                                                                     {c.cpid || '—'} {c.cdcr_number ? `• CDCR ${c.cdcr_number}` : ''} {c.facility ? `• ${c.facility}` : ''}
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-2 shrink-0">
-                                                                <div className="h-1 w-12 bg-slate-700 rounded-full overflow-hidden">
+                                                                <div className="h-1 w-12 bg-calpop-navy/15 rounded-full overflow-hidden">
                                                                     <div
-                                                                        className={`h-full ${c.score > 80 ? 'bg-emerald-500' : c.score > 60 ? 'bg-amber-500' : 'bg-slate-500'}`}
+                                                                        className={`h-full ${c.score > 80 ? 'bg-calpop-olive' : c.score > 60 ? 'bg-calpop-accent' : 'bg-calpop-navy/30'}`}
                                                                         style={{ width: `${c.score}%` }}
                                                                     />
                                                                 </div>
-                                                                <span className="text-[10px] font-mono text-slate-500 w-8 text-right">{Math.round(c.score)}%</span>
-                                                                {selected && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                                                                <span className="text-[10px] font-mono text-calpop-navy w-8 text-right">{Math.round(c.score)}%</span>
+                                                                {selected && <CheckCircle2 className="w-4 h-4 text-calpop-olive" />}
                                                             </div>
                                                         </button>
                                                     )
                                                 })}
                                             </div>
                                         ) : (
-                                            <div className="text-xs text-slate-500 italic">
+                                            <div className="text-xs text-calpop-navy italic">
                                                 No candidates matched the OCR text. Assign manually below.
                                             </div>
                                         )}
 
                                         <div className="mt-3">
-                                            <label className="text-[10px] text-slate-500 uppercase font-bold tracking-widest block mb-1">Confirmed CPID</label>
+                                            <label className="text-[10px] text-calpop-navy uppercase font-bold tracking-widest block mb-1">Confirmed CPID</label>
                                             <input
                                                 type="text"
                                                 value={confirmedCpid}
                                                 onChange={(e) => setConfirmedCpid(e.target.value.toUpperCase())}
-                                                className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-100 font-mono text-sm focus:border-cyan-500 outline-none"
+                                                className="w-full bg-white border border-calpop-navy/25 rounded px-3 py-2 text-calpop-ink font-mono text-sm focus:border-calpop-blue outline-none"
                                                 placeholder="e.g. ABC123"
                                             />
                                         </div>
@@ -523,14 +545,14 @@ export function IntakeArea() {
                     <div className="mt-6 flex gap-4">
                         <button
                             onClick={() => setShowPreview(false)}
-                            className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition-all border border-slate-700"
+                            className="px-8 py-3 bg-white hover:bg-calpop-bg text-calpop-navy rounded-xl font-bold transition-all border border-calpop-navy/15"
                         >
                             RETAKE
                         </button>
                         <button
                             onClick={handleIngest}
                             disabled={ingesting || !analysis}
-                            className={`px-10 py-3 rounded-xl font-bold shadow-lg flex items-center gap-3 transition-all ${ingesting ? 'bg-slate-700 opacity-50' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'}`}
+                            className={`px-10 py-3 rounded-xl font-bold shadow-lg flex items-center gap-3 transition-all ${ingesting ? 'bg-calpop-navy/25 opacity-50' : 'bg-calpop-accent hover:brightness-95 text-white shadow-calpop-accent/20'}`}
                         >
                             {ingesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Inbox className="w-5 h-5" />}
                             {ingesting ? 'INGESTING...' : 'CONFIRM & COMMIT TO VAULT'}
