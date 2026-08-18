@@ -163,6 +163,20 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
      listed regardless of scan status) to showing only the print queue,
      with a search box to manually find and add someone who needs an
      envelope without having come through a scan.
+  5. A **letter status-history table** — a new `LetterStatusHistory`
+     (or similar) table logging every stage transition a letter goes
+     through (stage, timestamp, and ideally who/what triggered it), rather
+     than the current single `Letter.status` column that only ever holds
+     the *current* value and silently overwrites whatever it was before.
+     This is the natural companion to reconciling `Letter.status` against
+     the real workflow in `docs/status_workflow.md` (already flagged above
+     as not yet done) — the real process has ~12 main stages plus lettered
+     sub-steps and named actors (Rey, Juan, Harvey, Sponsor) at each one,
+     which a single mutable column can't represent an audit trail of. Not
+     designed yet: exact schema, whether sub-steps (e.g. "6a", "8S") get
+     their own rows or just free-text notes, and whether this replaces
+     `Letter.status` outright or sits alongside it (denormalized "current
+     stage" column for fast queries + full history table for the record).
 
 ## Detailed Roadmap
 
