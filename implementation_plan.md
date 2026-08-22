@@ -411,15 +411,33 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     `/content` endpoint 302s to a signed SharePoint download URL.
   - **Real existing folder structure discovered by browsing the live
     account** (Rey: "instead of creating a folder, I have folders
-    already in use" — don't invent a new structure):
-    `CAL POP/...PRISONERS/{SponsorPseudonym}/{CPID}/exchange{N}-sent/`,
-    with an `intro-sent` folder for the first letter and some folders
-    combining ranges (`exchange2-3-sent`). The top-level names under
+    already in use" — don't invent a new structure). Under
+    `CAL POP/...PRISONERS/{SponsorPseudonym}/{CPID}/` there isn't one
+    templated "exchange folder" — it's a growing set of SIBLING
+    exchange subfolders, one per round of correspondence, each holding
+    that round's own file(s): `intro-sent/` (first letter), then
+    `exchange1-sent/`, `exchange2-3-sent/` (a combined range, when two
+    exchanges went out together), `exchange4-sent/`, etc., accumulating
+    over the life of the correspondence. **Corrected 22Aug2026 — an
+    earlier draft of this note wrongly implied a single `exchange{N}-sent`
+    slot per CPID; Rey caught this.** The top-level names under
     `...PRISONERS` are **sponsor pseudonyms** — what the sponsee sees,
     not the sponsor's real name — confirmed by Rey directly (initial
     assumption that the CPID-shaped subfolder names were real CDCR
     numbers was wrong and corrected by Rey; they're actual CPIDs,
     consistent with how the rest of the app anonymizes).
+  - **The `-sent` suffix is a downstream state marker, not part of the
+    upload-time name — corrected 22Aug2026 (Rey).** When CalPOP uploads
+    a redacted incoming letter for a sponsor to read, the folder it
+    creates/targets is plain `exchangeX` (no suffix) — this matches the
+    `list_folder`/create-folder step at digitize-incoming time. The
+    `-sent` suffix only gets added later, by Rey himself, once he's
+    downloaded the sponsor's written reply, printed it, and mailed it to
+    the prisoner — it marks "this round is fully closed out," not
+    "a file exists here." So the automated upload path must never
+    append `-sent` itself; that rename is Rey's own manual step
+    (possibly a future automation candidate, but not assumed or built
+    now).
   - **Folder-to-Sponsor matching, decided 22Aug2026**: match on
     `Sponsor.pseudonym` (already a field on the Sponsor table from the
     Sponsors tab MVP, unused until now) against the OneDrive folder
