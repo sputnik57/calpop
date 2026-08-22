@@ -11,7 +11,15 @@ from db.models import User
 from auth.dependencies import require_admin, require_admin_or_sponsor
 from auth.models import UserContext
 from config import get_settings
-from schemas.letter import LetterCreate, LetterOut, LetterScanIngest, LetterStatusHistoryOut, LetterUpdate
+from schemas.letter import (
+    LetterCreate,
+    LetterOut,
+    LetterScanIngest,
+    LetterStatusHistoryOut,
+    LetterUpdate,
+    RedactedUploadRequest,
+    RedactedUploadResult,
+)
 from services.letter_service import LetterService, AmbiguousSponsorRoutingError
 from services.matching_service import MatchingService
 from services.ocr_service import OCRService
@@ -205,6 +213,30 @@ def update_letter(
         return service.update_letter(letter_id, updates, changed_by=db_user.id if db_user else None)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{letter_id}/upload-redacted", response_model=RedactedUploadResult)
+def upload_redacted_letter(
+    letter_id: int,
+    payload: RedactedUploadRequest,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+    db_user=Depends(get_db_user),
+):
+    """
+    Letter Mgt's "Scan Letter" write path: files already-redacted page
+    image(s) for this letter into the sponsor's OneDrive (or the local
+    storage backend, if that's what's configured), alongside a blank
+    reply doc. See LetterService.upload_redacted_to_sponsor_onedrive.
+    """
+    service = _service(db)
+    try:
+        files = [(f.filename, base64.b64decode(f.content_base64)) for f in payload.files]
+        return service.upload_redacted_to_sponsor_onedrive(
+            letter_id, files, changed_by=db_user.id if db_user else None
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/{letter_id}/history", response_model=List[LetterStatusHistoryOut])

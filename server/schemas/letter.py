@@ -119,3 +119,18 @@ class LetterOut(LetterBase):
 class LetterListOut(BaseModel):
     items: List[LetterOut]
     total: int
+
+
+class RedactedFileIn(BaseModel):
+    filename: str
+    content_base64: str
+
+
+class RedactedUploadRequest(BaseModel):
+    files: List[RedactedFileIn]
+
+
+class RedactedUploadResult(BaseModel):
+    folder_path: str
+    uploaded_files: List[dict]
+    reply_doc: dict

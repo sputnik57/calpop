@@ -445,7 +445,7 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     their response directly into. Content: a single placeholder line,
     `"Respond here"` (not empty, not a longer template/instructions
     block). Filename: matches the existing `ID_NOC_out` convention —
-    `{CPID}_{exchange_number}_out.docx` (e.g. `BMB627_5_out.docx`) — same
+    `{CPID}_{exchange_number}_out.docx` (e.g. `ABC123_5_out.docx`) — same
     naming Rey already uses for his own outgoing letters, so the file
     that eventually gets downloaded/printed/mailed already has its final
     name from the moment it's created. `services/artifact_service.py`
@@ -461,10 +461,50 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     the app anywhere — a one-time import would save re-typing pseudonyms
     by hand, but its column structure hasn't been seen yet, so this is
     noted as a future option, not built or assumed.
-  - Not yet built: the actual write path from Letter Mgt's "Scan Letter"
-    into this structure (folder/exchange-number resolution, matching the
-    `exchange{N}-sent` / `intro-sent` naming exactly, choosing between a
-    combined-range folder vs. a new one).
+  - **The write path — built and verified live, 22Aug2026.** New
+    `LetterService.upload_redacted_to_sponsor_onedrive(letter_id, files,
+    changed_by)`: resolves the letter's prisoner → `sponsor_name` →
+    matching `Sponsor` row → `Sponsor.pseudonym`; exchange number is the
+    letter's own `letter_exchange_count` (Prisoner's count at
+    scan-confirm time — correct as long as no other letter for the same
+    prisoner is processed in between, which holds for the current
+    single-operator workflow); builds
+    `CAL POP/...PRISONERS/{pseudonym}/{cpid}/exchange{N}` (plain, no
+    `-sent`, per the correction above), creates it via the
+    `StorageService`, uploads each redacted page, then generates and
+    uploads the blank `{cpid}_{N}_out.docx` reply doc (new
+    `services/artifact_docx.py` — in-memory `python-docx`, distinct from
+    `SubmissionArtifactService` which writes to local disk instead of
+    handing bytes to a storage backend). Sets `Letter.status="redacted"`
+    and logs it to `LetterStatusHistory`. Raises a clear `ValueError` —
+    not a silent skip — if the sponsor has no matching `Sponsor` row or
+    no pseudonym set, since both are required to resolve the folder and
+    both are Rey's own data-entry gaps to fix via the Sponsors tab, not
+    something the app can guess at.
+  - New endpoint `POST /api/letters/{letter_id}/upload-redacted`
+    (admin-only), takes base64-encoded redacted page(s).
+  - **Live-verified end-to-end against the real OneDrive account**, not
+    just the local backend: test `Sponsor`/`Prisoner`/`Letter` rows
+    created, the service call actually ran against
+    `storage_backend=onedrive`, and the resulting
+    `exchange3/page1.jpg` + `exchange3/ZZT999_3_out.docx` were confirmed
+    present in the real account (one transient `httpx` read-timeout hit
+    on the reply-doc upload during testing — the file had actually
+    already landed server-side despite the client-side timeout; not a
+    code bug). All test data removed afterward — the OneDrive test
+    folder deleted via the Graph API, local storage test dir removed,
+    DB rows cleaned up.
+  - **Frontend built too (scoped down 22Aug2026):** new
+    `ScanLetterUpload.jsx` (`/letters/:id/scan`, linked from a "Scan"
+    action on `LettersPage`) — a plain multi-file picker that
+    base64-encodes the selected file(s) client-side and posts them to
+    the new endpoint, showing the resulting OneDrive folder path on
+    success. **Deliberately NOT the real redaction capture screen** — it
+    assumes the file(s) picked are already redacted; it does no
+    cropping/black-boxing itself. The actual webcam+crop+black-box
+    capture UI for letter content pages (reusing or duplicating
+    `ScantronStation.jsx`'s existing mechanism) was explicitly scoped
+    OUT of this pass and remains future work.
 
 ## Detailed Roadmap
 

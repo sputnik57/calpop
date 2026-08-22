@@ -15,7 +15,8 @@ from db.models import (
     LetterVersion,
     OCRArtifact,
     Prisoner,
-    Assignment
+    Assignment,
+    Sponsor,
 )
 from schemas.letter import (
     LetterCreate,
@@ -426,3 +427,82 @@ class LetterService:
         letter.latest_version_id = version.id
         self.db.commit()
         return self.get_letter(letter.id)
+
+    def upload_redacted_to_sponsor_onedrive(
+        self,
+        letter_id: int,
+        files: List[Tuple[str, bytes]],
+        changed_by: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        The "Scan Letter" write path: takes already-redacted page image(s)
+        for one letter and files them into the sponsor's OneDrive under
+        Rey's existing structure -- CAL POP/...PRISONERS/{pseudonym}/{cpid}/
+        exchange{N}/ -- alongside a blank reply doc for the sponsor to type
+        into (see implementation_plan.md, "Letter Mgt planning").
+
+        `files` is a list of (filename, content) for the redacted page(s) --
+        a letter can span multiple pages/images. Exchange number N is the
+        letter's own letter_exchange_count (Prisoner.letter_exchange_count
+        at scan-confirm time) -- correct as long as no other letter for the
+        same prisoner is processed between intake and this upload step,
+        which holds for CalPOP's single-operator workflow.
+
+        Raises ValueError if the prisoner's sponsor has no matching Sponsor
+        record, or that Sponsor has no pseudonym set -- both required to
+        resolve the OneDrive folder, and both are things Rey fixes via the
+        Sponsors tab, not something this method can guess at.
+        """
+        from config import get_settings
+        from services.storage_service import get_storage_service
+        from services.artifact_docx import build_blank_reply_docx
+
+        letter = self.get_letter(letter_id)
+        prisoner = letter.prisoner
+        if not prisoner or not prisoner.sponsor_name:
+            raise ValueError(f"Letter {letter_id}'s prisoner has no sponsor_name assigned yet.")
+
+        sponsor = self.db.query(Sponsor).filter(Sponsor.name == prisoner.sponsor_name).first()
+        if not sponsor:
+            raise ValueError(
+                f"No Sponsor record found matching sponsor_name={prisoner.sponsor_name!r}. "
+                "Add this sponsor in the Sponsors tab first."
+            )
+        if not sponsor.pseudonym:
+            raise ValueError(
+                f"Sponsor {sponsor.name!r} has no pseudonym set. Set one in the Sponsors tab "
+                "(it must match the sponsor's existing OneDrive folder name) before uploading."
+            )
+
+        exchange_number = letter.letter_exchange_count
+        if exchange_number is None:
+            raise ValueError(
+                f"Letter {letter_id}'s prisoner has no letter_exchange_count yet -- "
+                "the address must be verified at scan-confirm before this letter can be filed."
+            )
+
+        cpid = prisoner.cpid
+        folder_path = f"CAL POP/...PRISONERS/{sponsor.pseudonym}/{cpid}/exchange{exchange_number}"
+
+        settings = get_settings()
+        storage = get_storage_service(settings, self.db)
+        storage.create_folder(folder_path)
+
+        uploaded_refs = []
+        for filename, content in files:
+            ref = storage.upload_file(folder_path, filename, content)
+            uploaded_refs.append({"filename": filename, "ref": ref})
+
+        reply_filename = f"{cpid}_{exchange_number}_out.docx"
+        reply_ref = storage.upload_file(folder_path, reply_filename, build_blank_reply_docx())
+
+        letter.redacted_file_ref = uploaded_refs[0]["ref"] if uploaded_refs else None
+        letter.status = "redacted"
+        self._log_status(letter.id, "redacted", changed_by=changed_by, note=f"Uploaded to {folder_path}")
+        self.db.commit()
+
+        return {
+            "folder_path": folder_path,
+            "uploaded_files": uploaded_refs,
+            "reply_doc": {"filename": reply_filename, "ref": reply_ref},
+        }

@@ -105,7 +105,13 @@ export function LettersPage() {
                                     <td className="p-4 text-calpop-navy text-sm">
                                         {new Date(letter.updated_at).toLocaleDateString()}
                                     </td>
-                                    <td className="p-4 text-right">
+                                    <td className="p-4 text-right space-x-4">
+                                        <Link
+                                            to={`/letters/${letter.id}/scan`}
+                                            className="text-calpop-navy hover:text-calpop-ink font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            Scan &rarr;
+                                        </Link>
                                         <Link
                                             to={`/letters/${letter.id}`}
                                             className="text-calpop-blue hover:brightness-90 font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity"
