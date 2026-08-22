@@ -288,9 +288,12 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     `onedrive_item_id` column) but zero actual API calls anywhere.
     **Added 22Aug2026: `list_folder` also needs to power kanban-like
     reporting on letter processing** — not just a write-path helper for
-    uploads, a first-class read/reporting use case in its own right. Not
-    yet designed whether that view is built from OneDrive folder state,
-    from Postgres `LetterStatusHistory` (built earlier 22Aug2026), or both.
+    uploads, a first-class read/reporting use case in its own right.
+    Confirmed 22Aug2026: the bottleneck-reporting data comes from **both**
+    OneDrive folder state (via `list_folder`) **and** Postgres
+    `LetterStatusHistory` (built earlier 22Aug2026) — not one or the
+    other. Design/build of the actual reporting view is deferred until
+    both data sources exist ("stop when we get there").
   - Not decided yet: which Azure AD auth flow for the Graph API calls
     (app-only vs. Rey's own delegated login), exact scopes, and whether
     Scan Letter shares a component with Envelope Mgt's scan UI or is a
@@ -316,6 +319,32 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     license/use-conditions doc, and Rey still needs to sort which existing
     curriculum documents are actually safe to publish (likely a smaller
     private set than first thought).
+- **Sponsors tab MVP — built 22Aug2026 (Step 1 of the confirmed build
+  sequence).** Directory + Add Sponsor, backend and frontend both wired
+  and verified live (dev-login session, curl + browser).
+  - New `Sponsor` table (`db/models.py`), separate from `User` (login
+    identity) — most sponsors never log into CalPOP; Rey manages
+    everything on their behalf. No auth on this table by design.
+    Matched to `Prisoner.sponsor_name` by plain name string, not a
+    foreign key, so it can't break the Excel-synced routing logic
+    (`classify_sponsor_name`) on a naming mismatch.
+  - Fields: `name`, `pseudonym`, `email`, `phone`, `sponsor_type`
+    (`individual` | `course`), `onedrive_folder_link`. Migration
+    `31dd35515eac` applied.
+  - New router `api/sponsors.py`, mounted at `/api/sponsor-directory`
+    (deliberately not `/api/sponsors` — that path already exists,
+    Excel-roster-backed, and `/api/sponsors/{sponsor_name}/prisoners` is
+    a dynamic route that would collide). CRUD: list (with a computed
+    `sponsee_count` per sponsor, grouped off `Prisoner.sponsor_name`),
+    create, update, delete.
+  - `SponsorsPage.jsx` — Directory table (name, type badge, contact,
+    sponsee count, OneDrive link) + Add Sponsor form, `SubTabs` pattern,
+    matches existing CDCR palette/form conventions.
+  - Next per the confirmed sequence: OneDrive Graph API foundation (auth
+    approach still Rey's call — app-only vs. delegated), then Letter Mgt
+    "Scan Letter" redaction flow, then wiring Scan Letter output to
+    OneDrive upload using the `exchangeX`/naming conventions, branching
+    on `Sponsor.sponsor_type`.
 
 ## Detailed Roadmap
 
