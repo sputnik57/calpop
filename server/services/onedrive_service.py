@@ -219,6 +219,14 @@ class OneDriveStorageService(StorageService):
         return items
 
     def download_file(self, ref: str) -> bytes:
-        resp = httpx.get(f"{GRAPH_BASE}/me/drive/items/{ref}/content", headers=self._headers(), timeout=60.0)
+        # Graph API's /content endpoint 302s to a signed, pre-authenticated
+        # SharePoint download URL -- follow_redirects is required, and the
+        # Graph bearer token must NOT be forwarded to that second host.
+        resp = httpx.get(
+            f"{GRAPH_BASE}/me/drive/items/{ref}/content",
+            headers=self._headers(),
+            timeout=60.0,
+            follow_redirects=True,
+        )
         resp.raise_for_status()
         return resp.content

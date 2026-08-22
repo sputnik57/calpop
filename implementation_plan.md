@@ -359,18 +359,81 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     `data/storage/`. **This is the default** and needs zero cloud
     account of any kind; it's what a from-scratch deployment runs on
     out of the box.
-  - `OneDriveStorageService` — stub only, raises `NotImplementedError`
-    with a pointer to this doc; becomes real when the Graph API auth
-    decision (above) is made. Selecting it today fails loudly rather
-    than silently no-opping or falling back to local.
+  - `OneDriveStorageService` — real, built same day (see next entry).
   - New `Settings.storage_backend` config field (`local` default |
     `onedrive`), mirrors the existing `ocr_provider` pattern exactly —
     one setting picks the implementation, nothing else branches on it.
   - Verified live in the running container: create/upload/list/download
     round-trip on the local backend, a path-traversal attempt (`../..`)
-    correctly rejected, and the OneDrive stub correctly rejected.
+    correctly rejected.
   - Not yet wired into any endpoint — Letter Mgt's "Scan Letter" flow
     (still not built) will be the first real caller.
+- **OneDrive Graph API — built and verified live, 22Aug2026.** Auth
+  decision: **delegated, against Rey's own personal Microsoft account**
+  (his choice, "I'm familiar with it"), not app-only. Real Azure app
+  registration reused (an existing but unused/expired one, "OneDrive-CalPOP
+  UI") rather than creating a new one — required reconfiguring it (see
+  below) since it had been set up for org-tenant-only auth.
+  - Azure setup done via the Portal: switched "Supported account types"
+    to multi-tenant + personal accounts (required first fixing the app
+    manifest's `requestedAccessTokenVersion` from `null` to `2` — Azure
+    silently refuses the account-type change otherwise, since personal
+    accounts only work over the v2 token endpoint), added the Web
+    redirect URI, issued a fresh client secret (old one expired),
+    confirmed `Files.ReadWrite` + `offline_access` delegated permissions.
+  - New `OneDriveConnection` DB table (migration `42fe77a5be6a`) — a
+    single row (one OneDrive connection for the whole deployment, not
+    per-admin-login), `access_token`/`refresh_token` both `EncryptedString`.
+  - New `services/onedrive_service.py`: builds the Microsoft login URL,
+    exchanges the auth code, transparently refreshes the access token
+    (silent, ~1hr lifetime) before every Graph API call. `OneDriveStorageService`
+    implements the `StorageService` interface for real against
+    `graph.microsoft.com` — `create_folder`/`upload_file`/`list_folder`/
+    `download_file` all Graph API calls now, not stubs.
+  - New router `/api/integrations/onedrive` (login/callback/status/
+    disconnect), admin-only. Uses the `/common` authority, never
+    `AZURE_TENANT_ID` — personal accounts aren't members of that tenant
+    (a separate, unrelated app registration/tenant is used for the
+    existing admin/sponsor login flow).
+  - **Live end-to-end verified**, not just unit-tested: real OAuth login
+    completed (code-server's browser-based dev environment required
+    testing through `localhost:8090` directly rather than its
+    proxy-forwarded port UI, to keep the session cookie and the OAuth
+    redirect URI on the same origin), `connected: true` confirmed via
+    `/status`, then create/upload/list/download all round-tripped
+    against Rey's actual OneDrive (test folder created and deleted
+    afterward). One bug found and fixed along the way:
+    `ONEDRIVE_ROOT_FOLDER_ID` in `.env` was wrapped as a JSON-array
+    string (leftover from earlier unused scaffolding) but the config
+    field expects a plain string — Graph API rejected the malformed ID
+    until the `.env` value was unwrapped to a bare string. Also fixed:
+    `download_file` needed `follow_redirects=True` — Graph's
+    `/content` endpoint 302s to a signed SharePoint download URL.
+  - **Real existing folder structure discovered by browsing the live
+    account** (Rey: "instead of creating a folder, I have folders
+    already in use" — don't invent a new structure):
+    `CAL POP/...PRISONERS/{SponsorPseudonym}/{CPID}/exchange{N}-sent/`,
+    with an `intro-sent` folder for the first letter and some folders
+    combining ranges (`exchange2-3-sent`). The top-level names under
+    `...PRISONERS` are **sponsor pseudonyms** — what the sponsee sees,
+    not the sponsor's real name — confirmed by Rey directly (initial
+    assumption that the CPID-shaped subfolder names were real CDCR
+    numbers was wrong and corrected by Rey; they're actual CPIDs,
+    consistent with how the rest of the app anonymizes).
+  - **Folder-to-Sponsor matching, decided 22Aug2026**: match on
+    `Sponsor.pseudonym` (already a field on the Sponsor table from the
+    Sponsors tab MVP, unused until now) against the OneDrive folder
+    name — not `Sponsor.name`. Rey enters each sponsor's pseudonym via
+    the existing Add/Edit Sponsor form to wire up the mapping; no schema
+    change needed. The real pseudonym↔sponsor mapping also exists in a
+    "sponsor sheet" in Rey's Excel roster file, not currently read by
+    the app anywhere — a one-time import would save re-typing pseudonyms
+    by hand, but its column structure hasn't been seen yet, so this is
+    noted as a future option, not built or assumed.
+  - Not yet built: the actual write path from Letter Mgt's "Scan Letter"
+    into this structure (folder/exchange-number resolution, matching the
+    `exchange{N}-sent` / `intro-sent` naming exactly, choosing between a
+    combined-range folder vs. a new one).
 
 ## Detailed Roadmap
 
