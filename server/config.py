@@ -61,6 +61,12 @@ class Settings(BaseSettings):
         description="Azure AD group IDs that should map to the auditor role.",
     )
 
+    storage_backend: str = Field(
+        "local",
+        description="Backend for sponsor-facing file storage (local|onedrive). See "
+        "services/storage_service.py -- local disk works with no cloud account at all; "
+        "onedrive is not implemented yet.",
+    )
     onedrive_root_folder_id: Optional[str] = Field(
         None, description="Root folder ID in OneDrive where the application stores artifacts."
     )

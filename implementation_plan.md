@@ -345,6 +345,32 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     "Scan Letter" redaction flow, then wiring Scan Letter output to
     OneDrive upload using the `exchangeX`/naming conventions, branching
     on `Sponsor.sponsor_type`.
+- **`StorageService` interface — built 22Aug2026, in front of OneDrive
+  work, not after it.** Rey's question: what does a future CalPOP user
+  do if they have no OneDrive account, or no cloud storage at all? Answer:
+  don't couple the app to Microsoft Graph directly — put a small
+  interface in front of it.
+  - New `services/storage_service.py`: abstract `StorageService`
+    (`create_folder`, `upload_file`, `list_folder`, `download_file`),
+    addressed by logical slash-separated paths (e.g.
+    `SponsorName/exchange3`), never backend-specific IDs — callers never
+    know or care which backend is live.
+  - `LocalStorageService` — real, working, plain files under
+    `data/storage/`. **This is the default** and needs zero cloud
+    account of any kind; it's what a from-scratch deployment runs on
+    out of the box.
+  - `OneDriveStorageService` — stub only, raises `NotImplementedError`
+    with a pointer to this doc; becomes real when the Graph API auth
+    decision (above) is made. Selecting it today fails loudly rather
+    than silently no-opping or falling back to local.
+  - New `Settings.storage_backend` config field (`local` default |
+    `onedrive`), mirrors the existing `ocr_provider` pattern exactly —
+    one setting picks the implementation, nothing else branches on it.
+  - Verified live in the running container: create/upload/list/download
+    round-trip on the local backend, a path-traversal attempt (`../..`)
+    correctly rejected, and the OneDrive stub correctly rejected.
+  - Not yet wired into any endpoint — Letter Mgt's "Scan Letter" flow
+    (still not built) will be the first real caller.
 
 ## Detailed Roadmap
 
