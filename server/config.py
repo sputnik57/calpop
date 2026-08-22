@@ -67,6 +67,22 @@ class Settings(BaseSettings):
         "services/storage_service.py -- local disk works with no cloud account at all; "
         "onedrive is not implemented yet.",
     )
+
+    # OneDrive integration -- a SEPARATE Azure app registration ("OneDrive-CalPOP
+    # UI") from azure_client_id/azure_client_secret above, which is the
+    # admin/sponsor login app. Delegated auth against Rey's own personal
+    # Microsoft account (not an org tenant), so the authority is always
+    # /common, never azure_tenant_id -- personal accounts aren't members of
+    # that tenant and the tenant-specific endpoint rejects them.
+    onedrive_client_id: Optional[str] = Field(None, description="Client ID of the OneDrive-CalPOP UI app registration.")
+    onedrive_client_secret: Optional[str] = Field(None, description="Client secret of the OneDrive-CalPOP UI app registration.")
+    onedrive_redirect_uri: Optional[AnyHttpUrl] = Field(
+        None, description="Redirect URI registered on the OneDrive app for the delegated OAuth flow."
+    )
+    onedrive_scopes: List[str] = Field(
+        default_factory=lambda: ["Files.ReadWrite", "offline_access"],
+        description="OAuth scopes requested from the OneDrive app registration.",
+    )
     onedrive_root_folder_id: Optional[str] = Field(
         None, description="Root folder ID in OneDrive where the application stores artifacts."
     )
@@ -181,7 +197,7 @@ class Settings(BaseSettings):
             return [str(origin).strip() for origin in value if str(origin).strip()]
         return value
 
-    @field_validator("azure_scopes", "azure_admin_group_ids", "azure_auditor_group_ids", mode="before")
+    @field_validator("azure_scopes", "azure_admin_group_ids", "azure_auditor_group_ids", "onedrive_scopes", mode="before")
     def parse_comma_separated(cls, value):  # type: ignore[override]
         if value is None:
             return []
@@ -216,6 +232,13 @@ class Settings(BaseSettings):
         if self.base_url:
             return f"{str(self.base_url).rstrip('/')}{self.api_prefix}/auth/callback"
         return None
+
+    @property
+    def onedrive_authority(self) -> str:
+        # Always /common -- personal Microsoft accounts aren't members of
+        # any specific tenant, so azure_tenant_id (used by the separate
+        # admin/sponsor login app) doesn't apply here.
+        return "https://login.microsoftonline.com/common"
 
 
 @lru_cache()

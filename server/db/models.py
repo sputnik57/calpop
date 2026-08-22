@@ -175,6 +175,29 @@ class Sponsor(Base, TimestampMixin):
     onedrive_folder_link: Mapped[Optional[str]] = mapped_column(Text)
 
 
+class OneDriveConnection(Base, TimestampMixin):
+    """
+    Added 22Aug2026 -- holds the delegated OAuth tokens for the single
+    OneDrive account CalPOP uploads redacted letters to (Rey's own personal
+    Microsoft account, per his choice; see implementation_plan.md). Deliberately
+    a single-row table, not per-User -- this app has one OneDrive connection
+    for the whole deployment, not one per admin who happens to log in.
+
+    access_token is short-lived (~1hr) and refreshed automatically via
+    refresh_token before every Graph API call that needs it (see
+    services/onedrive_service.py); refresh_token is what actually matters
+    long-term and is the reason both are encrypted -- a leaked refresh
+    token grants ongoing access to the connected account's OneDrive.
+    """
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_email: Mapped[Optional[str]] = mapped_column(Text)
+    access_token: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    refresh_token: Mapped[Optional[str]] = mapped_column(EncryptedString)
+    access_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    connected_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
+    connected_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+
 sponsor_prisoner_table = Table(
     "sponsorprisoner",
     Base.metadata,

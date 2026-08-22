@@ -119,43 +119,18 @@ class LocalStorageService(StorageService):
         return Path(ref).read_bytes()
 
 
-class OneDriveStorageService(StorageService):
-    """
-    Microsoft Graph API backend -- for deployments (like Rey's) uploading
-    redacted letters to other sponsors' OneDrive folders. NOT IMPLEMENTED
-    YET: the Graph API integration is scoped for a later build step (see
-    implementation_plan.md, "Letter Mgt planning") pending an auth-approach
-    decision (app-only client-credentials vs. delegated login). Selecting
-    storage_backend=onedrive today raises clearly rather than silently
-    falling back to local disk.
-    """
-
-    def __init__(self, *_args, **_kwargs):
-        raise NotImplementedError(
-            "OneDrive storage backend is not implemented yet -- "
-            "see implementation_plan.md for status. Set STORAGE_BACKEND=local "
-            "(the default) until this is built."
-        )
-
-    def create_folder(self, path: str) -> str:
-        raise NotImplementedError
-
-    def upload_file(self, folder_path: str, filename: str, content: bytes) -> str:
-        raise NotImplementedError
-
-    def list_folder(self, path: str) -> List[StorageItem]:
-        raise NotImplementedError
-
-    def download_file(self, ref: str) -> bytes:
-        raise NotImplementedError
-
-
-def get_storage_service(settings) -> StorageService:
+def get_storage_service(settings, db=None) -> StorageService:
     """Factory -- the only place that branches on backend selection.
-    `settings` is the app's Settings instance (config.get_settings())."""
+    `settings` is the app's Settings instance (config.get_settings()).
+    `db` is required when storage_backend=onedrive (needed to read/refresh
+    the stored OAuth connection -- see services/onedrive_service.py); the
+    local backend doesn't touch the database at all."""
     backend = getattr(settings, "storage_backend", "local")
     if backend == "local":
         return LocalStorageService(settings.data_root / "storage")
     if backend == "onedrive":
-        return OneDriveStorageService()
+        if db is None:
+            raise ValueError("storage_backend=onedrive requires a db session")
+        from services.onedrive_service import OneDriveStorageService  # avoid import cycle
+        return OneDriveStorageService(settings, db)
     raise ValueError(f"Unknown storage_backend: {backend!r}")

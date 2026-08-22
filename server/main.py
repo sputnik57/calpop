@@ -26,6 +26,7 @@ from api.assignments import router as assignments_router
 from api.library import router as library_router
 from api.batch import router as batch_router
 from api.sponsors import router as sponsor_directory_router
+from api.integrations_onedrive import router as onedrive_router
 from db.session import SessionLocal, get_session
 from sqlalchemy.orm import Session
 from globals import excel_manager
@@ -85,6 +86,7 @@ app.include_router(assignments_router, prefix=f"{settings.api_prefix}/assignment
 app.include_router(library_router, prefix=f"{settings.api_prefix}/library")
 app.include_router(batch_router, prefix=f"{settings.api_prefix}/batch")
 app.include_router(sponsor_directory_router, prefix=f"{settings.api_prefix}/sponsor-directory")
+app.include_router(onedrive_router, prefix=f"{settings.api_prefix}/integrations/onedrive")
 
 # Static Files for scans/artifacts
 # Ensure data_root is absolute for static files
