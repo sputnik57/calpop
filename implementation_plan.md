@@ -204,6 +204,25 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
   `UCO567`, shift 1 then 2). Test records deleted afterward, real 16-record
   roster count unaffected. This is the human-communication convention
   documented earlier in this file, not a security control.
+- **Also 22Aug2026: OCR/scan matching now recognizes non-CDCR register
+  number formats** — prompted by a real case (someone administered from
+  outside CDCR, federal-BOP-style number like `66475-511`, no letters at
+  all). `services/matching_service.py`'s `_ID_PATTERNS` only ever matched
+  letter-prefixed IDs (`X99999`, `ABC123`), so a scan for this kind of
+  person would silently fall through to the much weaker free-text
+  name/address score instead of the strong ID-token signal. Added a
+  digits-only pattern (dash optional, since OCR won't always transcribe it
+  cleanly) and a `_normalize_id()` helper that strips dashes/spaces before
+  comparing, so `66475-511` and `66475511` score a full match against each
+  other regardless of which form was scanned vs. which form is on file.
+  Same fix applies to CDCR numbers typed with/without a dash. Found and
+  fixed in passing: `_score_postgres_rows`'s `cdcr_number` was hardcoded to
+  `None` with a stale "not tracked in Postgres" comment — that's been a
+  real `Prisoner` column since before this session, just never read here.
+  Verified live: a synthetic record with `cdcr_number="66475-511"` scored
+  a full 100% match against OCR text containing the number *without* the
+  dash, correctly outranking every real roster record (~40% on name/address
+  text alone); test record deleted immediately after.
 
 ## Detailed Roadmap
 

@@ -14,9 +14,20 @@ logger = logging.getLogger(__name__)
 # scored separately from the free-text name/address block -- inmate numbers are
 # usually the cleanest handwriting on an envelope and the strongest match signal.
 _ID_PATTERNS = [
-    r'\b[A-Z]{1,2}-?[0-9]{4,6}\b',  # e.g. X-99999, AB1234
-    r'\b[A-Z]{3,4}-?[0-9]{3,4}\b',  # e.g. ABC123
+    r'\b[A-Z]{1,2}-?[0-9]{4,6}\b',  # e.g. X-99999, AB1234 (CDCR)
+    r'\b[A-Z]{3,4}-?[0-9]{3,4}\b',  # e.g. ABC123 (CPID)
+    # Added 22Aug2026: some administered people aren't in CDCR and use a
+    # different register-number format entirely -- no letters at all, e.g.
+    # federal BOP-style "66475-511". Digits-only, dash optional, since a
+    # scan won't always transcribe the dash cleanly.
+    r'\b[0-9]{4,6}-?[0-9]{2,4}\b',
 ]
+
+
+def _normalize_id(value: str) -> str:
+    """Strip dashes/spaces for ID comparison -- '66475-511' and '66475511'
+    should match, and CDCR numbers get typed both ways too."""
+    return re.sub(r'[-\s]', '', value or '').upper()
 
 
 class MatchingService:
@@ -82,9 +93,9 @@ class MatchingService:
             text_score = fuzz.token_set_ratio(query_upper, record_blob) if record_blob.strip() else 0
             id_score = 0
             if id_tokens and cdcr:
-                id_score = max(fuzz.ratio(tok, cdcr.upper()) for tok in id_tokens)
+                id_score = max(fuzz.ratio(_normalize_id(tok), _normalize_id(cdcr)) for tok in id_tokens)
             if id_tokens and cpid:
-                id_score = max(id_score, max(fuzz.ratio(tok, cpid.upper()) for tok in id_tokens))
+                id_score = max(id_score, max(fuzz.ratio(_normalize_id(tok), _normalize_id(cpid)) for tok in id_tokens))
 
             score = max(text_score, id_score)
             if score <= 0:
@@ -133,7 +144,9 @@ class MatchingService:
             text_score = fuzz.token_set_ratio(query_upper, record_blob) if record_blob.strip() else 0
             id_score = 0
             if id_tokens and p.cpid:
-                id_score = max(fuzz.ratio(tok, p.cpid.upper()) for tok in id_tokens)
+                id_score = max(fuzz.ratio(_normalize_id(tok), _normalize_id(p.cpid)) for tok in id_tokens)
+            if id_tokens and p.cdcr_number:
+                id_score = max(id_score, max(fuzz.ratio(_normalize_id(tok), _normalize_id(p.cdcr_number)) for tok in id_tokens))
 
             score = max(text_score, id_score)
             if score <= 0:
@@ -141,7 +154,10 @@ class MatchingService:
 
             results.append({
                 "cpid": p.cpid,
-                "cdcr_number": None,  # not tracked in Postgres today -- Excel vault only
+                # Stale comment removed 22Aug2026 -- cdcr_number has been a
+                # real Prisoner column since before this session; this was
+                # just never updated to read it.
+                "cdcr_number": p.cdcr_number,
                 "first_name": p.first_name,
                 "last_name": p.last_name,
                 "facility": p.facility,
