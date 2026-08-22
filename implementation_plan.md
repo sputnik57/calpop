@@ -188,6 +188,22 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     value) — nothing left behind in this environment's dev DB.
   - **Not done:** no frontend for `GET /api/letters/{id}/history` yet (API
     only); the pre-existing `get_db_user` 403 above.
+- **Also 22Aug2026: Add New Person now generates a Caesar-cipher CPID** from
+  the entered name/CDCR#, not a random one. `core/cipher.py` gets
+  `generate_cpid_from_info` (shift=1 default) -- the "ABC123" format,
+  fixing a real bug in the older `core/letter_db.py` generator: that one
+  only ever fed 2 real letters (the two initials) into a 3-letter slot, so
+  the 3rd letter was ALWAYS a fixed 'X' pad, well short of the letter-space
+  it should've had. The new version pulls up to 3 real letters from the
+  first+last name concatenated and only pads with 'X' when there genuinely
+  aren't enough (e.g. both names blank). Still deterministic for a given
+  shift, so `POST /api/prisoners` retries at increasing shifts (1-25) on a
+  collision before falling back to the old fully-random generator as a
+  last resort -- verified live: two people with the *same* name+CDCR#
+  correctly got two different, non-colliding CPIDs (`TBN456` then
+  `UCO567`, shift 1 then 2). Test records deleted afterward, real 16-record
+  roster count unaffected. This is the human-communication convention
+  documented earlier in this file, not a security control.
 
 ## Detailed Roadmap
 

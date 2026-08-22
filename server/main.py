@@ -266,25 +266,41 @@ def get_excel_status(user=Depends(require_admin)):
 def create_prisoner(payload: PrisonerCreate, user=Depends(require_admin)):
     """
     Envelope Mgt's not-found branch: a person who wrote in isn't in the
-    roster at all yet. Generates a CPID server-side (random, not derived
-    from name/CDCR# -- the legacy core/letter_db.py generator that did that
-    has a bug where it can only ever produce 2 real letters from 2 initials,
-    padded with 'X', which doesn't match the real CPIDs already in the
-    roster) and creates the Prisoner record with whatever PII is known.
+    roster at all yet. Generates a CPID from the entered name/CDCR# via
+    core.cipher.generate_cpid_from_info (Caesar cipher, shift=1 by default
+    -- the same human-communication convention already used elsewhere, see
+    implementation_plan.md) rather than at random, so staff can recognize/
+    manually decode it later. That function fixes a real bug in the older
+    core/letter_db.py generator (only ever 2 real letters + a fixed 'X' pad
+    -- see its docstring), but is still deterministic for given inputs, so
+    a genuine collision is handled by retrying at increasing shifts (1-25)
+    before falling back to fully random as a last resort.
     """
     from db.models import Prisoner
+    from core.cipher import generate_cpid_from_info
     import random
 
     db = SessionLocal()
     try:
-        letters_pool = "ABCDEFGHJKLMNPQRSTUVWXYZ"  # no I/O -- avoid confusion with 1/0
-        digits_pool = "23456789"  # no 0/1 -- avoid confusion with O/I
         cpid = None
-        for _ in range(100):
-            candidate = "".join(random.choices(letters_pool, k=3)) + "".join(random.choices(digits_pool, k=3))
+        for shift in range(1, 26):
+            candidate = generate_cpid_from_info(payload.first_name, payload.last_name, payload.cdcr_number, shift=shift)
             if not db.query(Prisoner).filter(Prisoner.cpid == candidate).first():
                 cpid = candidate
                 break
+
+        if not cpid:
+            # Every shift collided -- vanishingly unlikely, but don't block
+            # intake on it. Random fallback matches the format, never reuses
+            # a taken value.
+            letters_pool = "ABCDEFGHJKLMNPQRSTUVWXYZ"  # no I/O -- avoid confusion with 1/0
+            digits_pool = "23456789"  # no 0/1 -- avoid confusion with O/I
+            for _ in range(100):
+                candidate = "".join(random.choices(letters_pool, k=3)) + "".join(random.choices(digits_pool, k=3))
+                if not db.query(Prisoner).filter(Prisoner.cpid == candidate).first():
+                    cpid = candidate
+                    break
+
         if not cpid:
             raise HTTPException(status_code=500, detail="Could not generate a unique CPID")
 

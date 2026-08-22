@@ -14,6 +14,7 @@ TokenLike = Union[str, bytes]
 __all__ = [
     "caesar_code",
     "caesar_decode",
+    "generate_cpid_from_info",
     "encrypt_aes_gcm",
     "decrypt_aes_gcm",
     "encrypt_text",
@@ -44,6 +45,42 @@ def caesar_decode(encoded: str, shift: int = LEGACY_SHIFT) -> str:
     Reverse the legacy Caesar cipher. Provided for backward compatibility.
     """
     return "".join(chr((ord(c) - shift) % 256) for c in encoded)
+
+
+def generate_cpid_from_info(
+    first_name: Optional[str],
+    last_name: Optional[str],
+    cdcr_number: Optional[str],
+    shift: int = LEGACY_SHIFT,
+) -> str:
+    """
+    Caesar-cipher CPID in the roster's "ABC123" format, derived from the
+    entered name/CDCR# rather than random -- the human-communication
+    convention documented in implementation_plan.md ("how sponsors/staff
+    refer to a sponsee without using their real name," not a security
+    control).
+
+    Fixes a bug in core/letter_db.py's make_readable_cpid: that version only
+    ever fed it 2 real letters (first/last initial) into a 3-letter slot, so
+    the 3rd letter was ALWAYS the 'X' pad -- every CPID it ever produced had
+    the same shape and collided far more than the letter-space allowed for.
+    This version pulls letters from as much of the real name as it can (up
+    to 3, from the first+last name concatenated) and only pads with 'X' when
+    there genuinely aren't enough real letters (e.g. both names blank).
+
+    Deterministic for given inputs + shift -- the caller is responsible for
+    checking uniqueness against existing CPIDs and retrying with a different
+    shift (see POST /api/prisoners in main.py) if this collides.
+    """
+    name_letters = "".join(c for c in f"{first_name or ''}{last_name or ''}".upper() if c.isalpha())
+    letters_source = (name_letters[:3] + "XXX")[:3] if len(name_letters) < 3 else name_letters[:3]
+    letters = "".join(chr((ord(c) - ord('A') + shift) % 26 + ord('A')) for c in letters_source)
+
+    cdcr_digits = "".join(c for c in str(cdcr_number or "") if c.isdigit())
+    digits_source = cdcr_digits[-3:] if len(cdcr_digits) >= 3 else cdcr_digits.zfill(3)
+    numbers = "".join(str((int(d) + shift) % 10) for d in digits_source)
+
+    return f"{letters}{numbers}"
 
 
 def _ensure_key_bytes(key: KeyLike) -> bytes:
