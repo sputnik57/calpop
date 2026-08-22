@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Mail, CheckCircle2, Loader2, Send, X, ExternalLink, Printer } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SubTabs } from '../components/SubTabs'
 import { IntakeArea } from './ScantronStation'
 
@@ -389,6 +389,15 @@ function PrintEnvelopesPanel() {
 }
 
 export function EnvelopeMgtPage() {
+    const [searchParams] = useSearchParams()
+    // ScantronStation.jsx's "This is a new person" branch (no scan match)
+    // links here as /envelope?tab=add so it lands directly on the form.
+    // SubTabs only reads defaultTab on initial mount, which is exactly what
+    // a fresh navigation is -- no extra wiring needed beyond this.
+    const requestedTab = searchParams.get('tab')
+    const validTabs = ['scan', 'add', 'print', 'update']
+    const defaultTab = validTabs.includes(requestedTab) ? requestedTab : 'scan'
+
     return (
         <div>
             <h2 className="text-2xl font-bold text-calpop-ink flex items-center gap-3 mb-1">
@@ -398,7 +407,8 @@ export function EnvelopeMgtPage() {
             <p className="text-calpop-navy text-sm mb-6">Intake, roster additions, and batch envelope printing.</p>
 
             <SubTabs
-                defaultTab="scan"
+                key={defaultTab}
+                defaultTab={defaultTab}
                 tabs={[
                     { key: 'scan', label: 'Scan & Find Person', content: <IntakeArea /> },
                     { key: 'add', label: 'Add New Person', content: <AddNewPersonForm /> },

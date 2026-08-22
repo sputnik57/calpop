@@ -223,6 +223,99 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
   a full 100% match against OCR text containing the number *without* the
   dash, correctly outranking every real roster record (~40% on name/address
   text alone); test record deleted immediately after.
+- **Scoped, not built (22Aug2026): `ScantronStation.jsx`'s scan-confirm
+  screen has grown a lot in one sitting** (Config, Image Tuning, the
+  capture stage, then in the confirm modal: OCR text, Candidate Matches,
+  Address Verification, and the new Routing card, all visible at once) —
+  flagged directly, deferred in favor of operational correctness over
+  refinement for now. Three changes agreed but not built:
+  1. Turn the confirm flow into real steps (Capture → Confirm Person →
+     Verify Address & Route) instead of one long scrollable screen.
+  2. Collapse Image Tuning (contrast/brightness) under an "Advanced"
+     toggle, default closed — rarely touched.
+  3. Merge the Routing card into the same card as Address Verification
+     (steps 1 and 3 combine naturally: "Verify Address & Route" becomes
+     one step, not two).
+- **Rey's full correspondence workflow, given 22Aug2026** — the real
+  end-to-end process, receiving through mailing and retention/disposal.
+  Documented in full outside this repo (private session memory); the
+  actionable feature backlog it produced, all explicitly deferred
+  ("later, not now") rather than built this session:
+  1. **Priority ordering** for a batch of unprocessed letters (first-time
+     responders → oldest-before-newest → other sponsors' sponsees before
+     Rey's own). Manual today on purpose; automation candidate later.
+  2. **Active/inactive decision on new-prisoner intake** — belongs in the
+     **Sponsors tab**, not Envelope Mgt (Rey's correction).
+  3. **OneDrive folder creation + upload** — two different naming
+     conventions (digitize-incoming step vs. post-writing step; Rey's own
+     sponsees vs. others'). Not yet sifted through in detail; will land in
+     **Sponsors tab and Letter Mgt tab**, not Envelope Mgt.
+  4. **Email/SMTP via Dreamhost** for a *series* of notifications — the
+     Green Book list goes to the **ISO of SAA** (the organization Harvey
+     worked for, not Harvey personally, who has passed away) — a stable,
+     role-based recipient.
+  5. Safety-issue handling (note in spreadsheet, notify sponsor, hand them
+     the safety SOP) — not yet placed in a specific tab.
+  6. "Never give out contact information" on a sponsorship request — a
+     hard rule, not currently enforced anywhere in the app.
+  7. Letter Mgt (reading/writing) not built or verified against this real
+     process.
+  8. **Retention/disposal policy is an open question from Rey himself**
+     (how long to keep physical letters, when research retention ends,
+     disposal method) — explicitly not a build task until he decides, not
+     something to guess at.
+- **Letter Mgt planning (22Aug2026) — redaction + OneDrive, not built yet.**
+  Reviewed the legacy Streamlit app first: it had NO redaction (a manual
+  out-of-app process, just a text field for a path) and NO OneDrive
+  integration (hardcoded path strings shown as copy-paste hints only,
+  `directory_selection_widget()`'s return value was hardcoded to `""`).
+  Two real findings that change the plan:
+  - **Redaction already exists in the current app** — `ScantronStation.jsx`'s
+    crop box + draggable black-box redaction, burned into the canvas before
+    upload (built for Envelope Mgt's person-matching scan). Letter Mgt's
+    "Scan Letter" (redacting letter CONTENT before it goes to an external
+    sponsor) should reuse this mechanism, not rebuild it.
+  - **Local filesystem access is off the table.** Windows (where the
+    OneDrive-synced curriculum/letter folders live) is air-gapped from the
+    Linux side running the Docker backend — confirmed directly by Rey. So
+    both curriculum-file reference (for when Rey writes letters himself)
+    and OneDrive folder/file operations (Rey's `exchangeX` folder + the
+    `TOD_ID_DATE_COUNT`/`ID_NOC_out` naming from the correspondence
+    workflow doc) require real Microsoft Graph API integration — auth,
+    create-folder, upload, list, download. The codebase already has unused
+    scaffolding for this (`config.py`'s `onedrive_root_folder_id`/
+    `onedrive_sponsor_prefix`, `db/models.py`'s `storage_backend` enum and
+    `onedrive_item_id` column) but zero actual API calls anywhere.
+    **Added 22Aug2026: `list_folder` also needs to power kanban-like
+    reporting on letter processing** — not just a write-path helper for
+    uploads, a first-class read/reporting use case in its own right. Not
+    yet designed whether that view is built from OneDrive folder state,
+    from Postgres `LetterStatusHistory` (built earlier 22Aug2026), or both.
+  - Not decided yet: which Azure AD auth flow for the Graph API calls
+    (app-only vs. Rey's own delegated login), exact scopes, and whether
+    Scan Letter shares a component with Envelope Mgt's scan UI or is a
+    tailored parallel copy. OneDrive folder-structure branching (individual
+    sponsor vs. "the Course") also depends on Sponsors tab data that
+    doesn't exist yet.
+  - **Curriculum access is split, decided 22Aug2026 — and corrected again
+    same day: turns out NEITHER curriculum NOR Rey's own past letters need
+    the Graph API at all.** Generic 12-step worksheets/program materials
+    go **public on GitHub**, own separate repo (not a folder in
+    `sputnik57/calpop` — Rey's call, "can have a life of its own"), source
+    of truth going forward, doubling as outreach material. `unsafe.docx`
+    (word-substitution guidance, e.g. "disease"/"addiction" instead of
+    "sex") is **also fine to publish** — corrected 22Aug2026: it's
+    sponsor-safety-from-inmates guidance, not a CDCR-mail-screening
+    workaround as first assumed. Rey's own past letters stay private on
+    his own Windows machine, not migrating, and **don't need the API
+    either** — he opens them directly, the app doesn't need to broker it.
+    **Net effect: the OneDrive Graph API (item 3 above) is needed for
+    exactly one thing — uploading redacted letters to OTHER sponsors'
+    OneDrive folders**, not curriculum, not Rey's own reference reading.
+    Still open: the new curriculum repo's name/location, a
+    license/use-conditions doc, and Rey still needs to sort which existing
+    curriculum documents are actually safe to publish (likely a smaller
+    private set than first thought).
 
 ## Detailed Roadmap
 

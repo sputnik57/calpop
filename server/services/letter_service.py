@@ -178,6 +178,8 @@ class LetterService:
         corrected_city: Optional[str] = None,
         corrected_state: Optional[str] = None,
         corrected_zip: Optional[str] = None,
+        add_to_db: bool = True,
+        add_to_print_queue: bool = False,
     ) -> Letter:
         from globals import excel_manager
         
@@ -220,10 +222,16 @@ class LetterService:
                     raise ValueError("No prisoners found in database. Please run check_db.py or upload an Excel map.")
 
         # --- ENSURE PRISONER EXISTS IN DB (Ghost Provisioning) ---
+        # add_to_db (added 22Aug2026) is an explicit staff choice, not
+        # automatic -- someone who only wrote in asking for literature isn't
+        # a sponsee, and this used to silently create a full roster record
+        # for them regardless. A Letter still needs *some* Prisoner row to
+        # attach to (NOT NULL FK), so add_to_db=False still creates one, but
+        # deliberately minimal (name/CDCR# only -- no address, facility, or
+        # sponsor_name) and flagged literature_only for reporting.
         p = self.db.query(Prisoner).filter(Prisoner.cpid == prisoner_cpid).first()
         if not p:
-            # Try to pull details from excel_manager if they exist there but not in DB
-            resolved = excel_manager.resolve_name_from_cpid(prisoner_cpid)
+            resolved = excel_manager.resolve_name_from_cpid(prisoner_cpid) if add_to_db else None
             if resolved:
                 p = Prisoner(
                     cpid=resolved['cpid'],
@@ -232,12 +240,20 @@ class LetterService:
                     facility=resolved.get('facility'),
                     sponsor_name=resolved.get('sponsor_name'),
                 )
-            else:
+            elif add_to_db:
                 # True Ghost: CPID exists neither in DB nor Excel
                 p = Prisoner(
                     cpid=prisoner_cpid,
                     first_name="Unknown",
                     last_name=f"Prisoner ({prisoner_cpid})"
+                )
+            else:
+                # Literature-only: minimal record, explicitly not a sponsee.
+                p = Prisoner(
+                    cpid=prisoner_cpid,
+                    first_name="Unknown",
+                    last_name=f"Prisoner ({prisoner_cpid})",
+                    literature_only=True,
                 )
             self.db.add(p)
             self.db.flush()
@@ -262,6 +278,16 @@ class LetterService:
 
         if address_verified:
             p.letter_exchange_count = (p.letter_exchange_count or 0) + 1
+
+        # Print queue (added 18Aug2026, decoupled from address_verified
+        # 22Aug2026): its own explicit staff choice now, not automatic just
+        # because the address was verified -- but still requires a verified
+        # address as a prerequisite, since printing an envelope for an
+        # unverified address is exactly the failure mode this exists to
+        # prevent. A checked box with no verification is silently ignored,
+        # not an error -- the frontend disables the checkbox until
+        # addressVerified, this is the backend's own enforcement of that.
+        if add_to_print_queue and address_verified:
             p.queued_for_printing_at = datetime.utcnow()
 
         # 2. Create Letter

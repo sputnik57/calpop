@@ -65,7 +65,7 @@ class LetterScanIngest(BaseModel):
         None, description="Manually entered: when staff physically picked this up from the PO box (distinct from the postmark date)."
     )
     routing_status_override: Optional[str] = Field(
-        None, description="'queued_for_writing' or 'queued_for_letter_scan' -- required if the prisoner's Sponsor value is ambiguous (see 409 response from a first attempt without this)."
+        None, description="'queued_for_writing' or 'queued_for_letter_scan'. As of 22Aug2026 this is the PRIMARY routing mechanism -- ScantronStation.jsx always sends an explicit staff choice (Letter Writing Queue vs Assign Sponsor Queue), replacing the old automatic sponsor_name-based inference. That automatic path (services/letter_service.resolve_envelope_routing_status) still runs as a fallback when this is omitted, including its ambiguous-sponsor 409."
     )
     # Scan-confirm address verification (added 18Aug2026). address_verified
     # is the human's yes/no on whatever the frontend showed them (either the
@@ -80,6 +80,13 @@ class LetterScanIngest(BaseModel):
     corrected_city: Optional[str] = None
     corrected_state: Optional[str] = None
     corrected_zip: Optional[str] = None
+    # Added 22Aug2026 -- both explicit, neither automatic. add_to_db=False
+    # still creates a Letter (and a minimal, literature_only=True Prisoner
+    # row for it to attach to -- see create_letter_from_ocr) rather than
+    # skipping intake entirely, so literature-only contacts are still
+    # tracked for reporting.
+    add_to_db: bool = Field(True, description="Whether this scan represents someone to add as a real sponsee record. False for literature-only requests -- still logs the letter, but as a minimal, literature_only-flagged Prisoner row.")
+    add_to_print_queue: bool = Field(False, description="Add to Envelope Mgt's print queue. Only takes effect if address_verified is also true.")
 
 
 class LetterUpdate(BaseModel):
@@ -103,6 +110,7 @@ class LetterOut(LetterBase):
     
     dates: Optional[LetterDatesOut] = None
     versions: List[LetterVersionOut] = []
+    letter_exchange_count: Optional[int] = None
 
     class Config:
         from_attributes = True

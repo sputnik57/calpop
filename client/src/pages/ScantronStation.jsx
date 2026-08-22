@@ -22,6 +22,7 @@ export function IntakeArea() {
     const [lastCapture, setLastCapture] = useState(null)
     const [showPreview, setShowPreview] = useState(false)
     const [ingesting, setIngesting] = useState(false)
+    const [ingestResult, setIngestResult] = useState(null) // holds the returned letter after a successful confirm, so the exchange-count note stays on screen until staff dismisses it
     const [uploadedImage, setUploadedImage] = useState(null)
     const fileInputRef = useRef(null)
 
@@ -92,13 +93,48 @@ export function IntakeArea() {
     const [addressEditing, setAddressEditing] = useState(false)
     const [correctedAddress, setCorrectedAddress] = useState({ address: '', city: '', state: '', zip: '' })
 
-    const confirmedCandidate = analysis?.candidates?.find(c => c.cpid && c.cpid === confirmedCpid) || null
+    // Full roster, fetched once, keyed by CPID -- the fallback source for
+    // the address-verification panel below when the confirmed person isn't
+    // in analysis.candidates (a manually-typed CPID, or OCR/matching
+    // returned nothing at all, e.g. no candidates matched or OCR failed).
+    // Without this the panel only ever worked when picked from the
+    // candidate list, which turned out to be far too narrow a condition.
+    const [rosterByCpid, setRosterByCpid] = useState({})
+    useEffect(() => {
+        fetch('/api/prisoners', { credentials: 'include' })
+            .then(res => res.ok ? res.json() : [])
+            .then(data => {
+                const byCpid = {}
+                for (const p of data || []) byCpid[p.cpid] = p
+                setRosterByCpid(byCpid)
+            })
+            .catch(() => {})
+    }, [])
+
+    const confirmedFromCandidates = analysis?.candidates?.find(c => c.cpid && c.cpid === confirmedCpid) || null
+    const confirmedFromRoster = confirmedCpid && rosterByCpid[confirmedCpid]
+        ? { ...rosterByCpid[confirmedCpid], address_score: null } // no OCR-based score when this came from the roster, not a candidate
+        : null
+    const confirmedCandidate = confirmedFromCandidates || confirmedFromRoster
+
+    // Routing (added 22Aug2026) -- replaces the old automatic
+    // sponsor_name-based routing entirely, per an explicit decision: staff
+    // now always pick the next queue by hand instead of the system
+    // inferring it. addToDb defaults true (the common case is a real
+    // sponsee); routingChoice has no default -- it's a required pick
+    // before a scan can be confirmed, since there's no automatic fallback
+    // to fall back on anymore. addToPrintQueue can only take effect once
+    // addressVerified is true (also enforced server-side).
+    const [addToDb, setAddToDb] = useState(true)
+    const [addToPrintQueue, setAddToPrintQueue] = useState(false)
+    const [routingChoice, setRoutingChoice] = useState('') // 'queued_for_writing' | 'queued_for_letter_scan'
 
     const resetAddressVerification = (cpid) => {
         setConfirmedCpid(cpid)
         setAddressVerified(false)
         setAddressEditing(false)
         setCorrectedAddress({ address: '', city: '', state: '', zip: '' })
+        setAddToPrintQueue(false) // depends on a fresh addressVerified for this specific person
     }
 
     const captureAndRedact = async () => {
@@ -186,7 +222,12 @@ export function IntakeArea() {
                 setAnalysis(data)
                 // Do NOT pre-select a candidate -- OCR/fuzzy matching is wrong often
                 // enough that staff must explicitly pick the right person below.
-                setConfirmedCpid('')
+                // resetAddressVerification (not a bare setConfirmedCpid('')) so a
+                // fresh capture doesn't inherit the previous scan's verified/queued
+                // state for a different person.
+                resetAddressVerification('')
+                setAddToDb(true)
+                setRoutingChoice('')
             }
         } catch (err) {
             console.error("Analysis Failed:", err)
@@ -209,6 +250,9 @@ export function IntakeArea() {
                     filename: `scan_${Date.now()}.jpg`,
                     prisoner_cpid: confirmedCpid || null,
                     address_verified: addressVerified,
+                    add_to_db: addToDb,
+                    add_to_print_queue: addToPrintQueue,
+                    routing_status_override: routingChoice || null,
                     ...(addressEditing ? {
                         corrected_address: correctedAddress.address || null,
                         corrected_city: correctedAddress.city || null,
@@ -240,9 +284,11 @@ export function IntakeArea() {
                 throw new Error(`Invalid server response: ${text.substring(0, 100)}`)
             }
 
-            // Success!
-            alert(`Success! Letter #${data.id} created from scan.`)
-            navigate('/inbox')
+            // Success! Show the exchange-count note on screen (staff needs
+            // to physically write it on the envelope) instead of an alert()
+            // that's easy to dismiss without reading, then hold here until
+            // they explicitly continue.
+            setIngestResult(data)
 
         } catch (err) {
             console.error(err)
@@ -450,6 +496,35 @@ export function IntakeArea() {
                 </div>
             </div>
 
+            {/* EXCHANGE-COUNT NOTE -- shown after a successful confirm, held
+                on screen until staff dismisses it (not a browser alert()
+                that's easy to click past without reading). */}
+            {ingestResult && (
+                <div className="fixed inset-0 z-[110] bg-calpop-navy/70 flex items-center justify-center p-6 backdrop-blur-sm">
+                    <div className="bg-white border border-calpop-navy/15 rounded-2xl shadow-2xl max-w-md w-full p-8 text-center space-y-6">
+                        <CheckCircle2 className="w-14 h-14 text-calpop-olive mx-auto" />
+                        <div>
+                            <h3 className="text-xl font-bold text-calpop-ink">Letter #{ingestResult.id} Created</h3>
+                        </div>
+                        {ingestResult.letter_exchange_count != null && (
+                            <div className="bg-calpop-accent/10 border-2 border-calpop-accent rounded-xl p-5">
+                                <div className="text-xs font-bold text-calpop-accent uppercase tracking-widest mb-1">Exchange #</div>
+                                <div className="text-5xl font-black text-calpop-ink font-mono">{ingestResult.letter_exchange_count}</div>
+                                <div className="text-sm font-bold text-calpop-accent mt-3">
+                                    NOTE: write this exchange number on front of physical envelope.
+                                </div>
+                            </div>
+                        )}
+                        <button
+                            onClick={() => { setIngestResult(null); setShowPreview(false); navigate('/inbox') }}
+                            className="w-full py-3 bg-calpop-accent hover:brightness-95 text-white rounded-xl font-bold"
+                        >
+                            Continue to Work Queue
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* PREVIEW MODAL */}
             {showPreview && lastCapture && (
                 <div className="fixed inset-0 z-[100] bg-calpop-navy/70 flex flex-col items-center p-6 backdrop-blur-sm overflow-hidden">
@@ -547,8 +622,20 @@ export function IntakeArea() {
                                                 })}
                                             </div>
                                         ) : (
-                                            <div className="text-xs text-calpop-navy italic">
-                                                No candidates matched the OCR text. Assign manually below.
+                                            <div className="space-y-2">
+                                                <div className="text-xs text-calpop-navy italic">
+                                                    No candidates matched the OCR text. Assign manually below, or --
+                                                </div>
+                                                {/* Not a queue -- a branch. Nobody matched, so rather than force a
+                                                    confirm against the wrong person (or a manually-typed guess),
+                                                    jump straight to Add New Person. */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigate('/envelope?tab=add')}
+                                                    className="text-xs font-bold text-calpop-blue hover:brightness-90"
+                                                >
+                                                    This is a new person &rarr; Add New Person
+                                                </button>
                                             </div>
                                         )}
 
@@ -657,6 +744,67 @@ export function IntakeArea() {
                         </div>
                     </div>
 
+                    {/* Routing (added 22Aug2026) -- replaces the old automatic
+                        sponsor_name-based routing entirely. Every box here is an
+                        explicit staff decision, none of it inferred. */}
+                    <div className="mt-6 w-full max-w-6xl bg-white rounded-2xl border border-calpop-navy/15 shadow-sm p-5">
+                        <h4 className="text-xs font-bold text-calpop-blue uppercase tracking-widest mb-4">Routing</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={addToDb}
+                                    onChange={(e) => setAddToDb(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4"
+                                />
+                                <div>
+                                    <div className="text-sm font-bold text-calpop-ink">Add to Database</div>
+                                    <div className="text-xs text-calpop-navy">Uncheck for literature-only requests -- still logged, but not added as a sponsee.</div>
+                                </div>
+                            </label>
+
+                            <label className={`flex items-start gap-3 ${addressVerified ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                                <input
+                                    type="checkbox"
+                                    checked={addToPrintQueue}
+                                    disabled={!addressVerified}
+                                    onChange={(e) => setAddToPrintQueue(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4"
+                                />
+                                <div>
+                                    <div className="text-sm font-bold text-calpop-ink">Print Envelope Queue</div>
+                                    <div className="text-xs text-calpop-navy">{addressVerified ? 'Send to Envelope Mgt’s print queue.' : 'Verify the address above first.'}</div>
+                                </div>
+                            </label>
+
+                            <div>
+                                <div className="text-sm font-bold text-calpop-ink mb-2">Next Step (pick one)</div>
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="routingChoice"
+                                            checked={routingChoice === 'queued_for_writing'}
+                                            onChange={() => setRoutingChoice('queued_for_writing')}
+                                            className="w-4 h-4"
+                                        />
+                                        <span className="text-sm text-calpop-ink">Letter Writing Queue</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="routingChoice"
+                                            checked={routingChoice === 'queued_for_letter_scan'}
+                                            onChange={() => setRoutingChoice('queued_for_letter_scan')}
+                                            className="w-4 h-4"
+                                        />
+                                        <span className="text-sm text-calpop-ink">Assign Sponsor Queue</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="mt-6 flex gap-4">
                         <button
                             onClick={() => setShowPreview(false)}
@@ -666,8 +814,9 @@ export function IntakeArea() {
                         </button>
                         <button
                             onClick={handleIngest}
-                            disabled={ingesting || !analysis}
-                            className={`px-10 py-3 rounded-xl font-bold shadow-lg flex items-center gap-3 transition-all ${ingesting ? 'bg-calpop-navy/25 opacity-50' : 'bg-calpop-accent hover:brightness-95 text-white shadow-calpop-accent/20'}`}
+                            disabled={ingesting || !analysis || !routingChoice}
+                            title={!routingChoice ? 'Pick a Next Step above first' : undefined}
+                            className={`px-10 py-3 rounded-xl font-bold shadow-lg flex items-center gap-3 transition-all ${(ingesting || !routingChoice) ? 'bg-calpop-navy/25 opacity-50' : 'bg-calpop-accent hover:brightness-95 text-white shadow-calpop-accent/20'}`}
                         >
                             {ingesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Inbox className="w-5 h-5" />}
                             {ingesting ? 'INGESTING...' : 'CONFIRM & COMMIT TO VAULT'}

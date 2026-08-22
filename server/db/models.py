@@ -133,8 +133,46 @@ class Prisoner(Base, TimestampMixin):
     # this doesn't already.
     queued_for_printing_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Added 22Aug2026: the scan-confirm "Add to Database" checkbox is
+    # explicit, not automatic -- someone who only wrote in asking for
+    # literature isn't a sponsee, and checking it off shouldn't silently
+    # create a full roster record for them. Unchecked still creates a
+    # Prisoner row (a Letter requires one to attach to -- NOT NULL FK) but
+    # a minimal one (name/CDCR# only, no address/facility/sponsor), and
+    # this flag marks it so as explicitly "never assigned a sponsor" for
+    # reporting -- distinct from a real sponsee whose sponsor_name is
+    # blank only because assignment hasn't happened YET.
+    literature_only: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
+
     letters: Mapped[List["Letter"]] = relationship(back_populates="prisoner")
     assignments: Mapped[List["Assignment"]] = relationship(back_populates="prisoner")
+
+
+class Sponsor(Base, TimestampMixin):
+    """
+    Added 22Aug2026 -- Sponsors tab MVP. A roster/contact record, distinct
+    from `User` (login identity, Azure AD-backed): most sponsors never log
+    into CalPOP at all -- Rey manages everything on their behalf per the
+    real workflow. No password/auth here on purpose; that's sponsor-portal
+    territory (Phase 7, unverified/unbuilt), a separate and larger concern.
+
+    Deliberately matched to Prisoner.sponsor_name by plain name string, NOT
+    a foreign key -- sponsor_name is synced from the Excel roster and
+    already drives Envelope Mgt's routing logic (classify_sponsor_name);
+    a hard FK here would risk breaking that on any naming mismatch. This
+    table is purely additive: contact info CalPOP didn't track before.
+    """
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    pseudonym: Mapped[Optional[str]] = mapped_column(Text)
+    email: Mapped[Optional[str]] = mapped_column(Text)
+    phone: Mapped[Optional[str]] = mapped_column(Text)
+    # "individual" (few sponsees, gets a per-sponsee CPID folder + exchangeX
+    # subfolder on OneDrive) vs "course" (Rey's own/"Course" bulk sponsees,
+    # gets two top-level active/inactive folders instead) -- see the
+    # correspondence-workflow OneDrive naming conventions.
+    sponsor_type: Mapped[str] = mapped_column(Text, nullable=False, default="individual")
+    onedrive_folder_link: Mapped[Optional[str]] = mapped_column(Text)
 
 
 sponsor_prisoner_table = Table(
@@ -175,6 +213,15 @@ class Letter(Base, TimestampMixin):
 
     prisoner: Mapped["Prisoner"] = relationship(back_populates="letters")
     created_by_user: Mapped[Optional["User"]] = relationship(foreign_keys=[created_by])
+
+    @property
+    def letter_exchange_count(self) -> Optional[int]:
+        """Not a real column -- reads through to Prisoner.letter_exchange_count
+        so LetterOut can surface it (e.g. the scan-confirm screen telling
+        staff what number to write on the physical envelope) without a
+        separate round trip. Relies on Letter.prisoner being loaded
+        (LetterService._query() always selectinloads it)."""
+        return self.prisoner.letter_exchange_count if self.prisoner else None
     latest_version: Mapped[Optional["LetterVersion"]] = relationship(
         foreign_keys=[latest_version_id],
         post_update=True,

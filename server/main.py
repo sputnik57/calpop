@@ -382,6 +382,7 @@ def list_prisoners(user=Depends(require_admin)):
                 "letter_exchange_count": p.letter_exchange_count,
                 "step_received_count": p.step_received_count,
                 "bph_date": p.bph_date,
+                "literature_only": p.literature_only,
             }
             for p in prisoners
         ]
