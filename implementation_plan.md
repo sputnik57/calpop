@@ -438,7 +438,20 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
     append `-sent` itself; that rename is Rey's own manual step
     (possibly a future automation candidate, but not assumed or built
     now).
-  - **Folder-to-Sponsor matching, decided 22Aug2026**: match on
+  - **Each exchangeX upload also needs a blank reply doc, decided
+    22Aug2026 (Rey).** The upload step doesn't just drop the redacted
+    incoming letter(s) into the new `exchangeX` folder — it also creates
+    a blank `.docx` alongside them, pre-placed for the sponsor to type
+    their response directly into. Content: a single placeholder line,
+    `"Respond here"` (not empty, not a longer template/instructions
+    block). Filename: matches the existing `ID_NOC_out` convention —
+    `{CPID}_{exchange_number}_out.docx` (e.g. `BMB627_5_out.docx`) — same
+    naming Rey already uses for his own outgoing letters, so the file
+    that eventually gets downloaded/printed/mailed already has its final
+    name from the moment it's created. `services/artifact_service.py`
+    already generates `.docx` via `python-docx`
+    (`SubmissionArtifactService`) — reusable for this, not a new
+    dependency.
     `Sponsor.pseudonym` (already a field on the Sponsor table from the
     Sponsors tab MVP, unused until now) against the OneDrive folder
     name — not `Sponsor.name`. Rey enters each sponsor's pseudonym via
