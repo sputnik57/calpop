@@ -18,6 +18,17 @@ class LetterDatesOut(BaseModel):
         from_attributes = True
 
 
+class LetterStatusHistoryOut(BaseModel):
+    id: int
+    status: str
+    changed_at: datetime
+    changed_by: Optional[int] = None
+    note: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class LetterVersionBase(BaseModel):
     content: str
     content_format: str = "markdown"
@@ -56,6 +67,19 @@ class LetterScanIngest(BaseModel):
     routing_status_override: Optional[str] = Field(
         None, description="'queued_for_writing' or 'queued_for_letter_scan' -- required if the prisoner's Sponsor value is ambiguous (see 409 response from a first attempt without this)."
     )
+    # Scan-confirm address verification (added 18Aug2026). address_verified
+    # is the human's yes/no on whatever the frontend showed them (either the
+    # on-file address as-is, or corrected_address below); it's what actually
+    # gates the letter_exchange_count increment and print-queue add in
+    # LetterService.create_letter_from_ocr -- not the automated OCR match
+    # score, which is advisory only.
+    address_verified: Optional[bool] = Field(
+        None, description="Human confirmation that the on-file address (or corrected_address below) is correct. Gates letter_exchange_count increment and print-queue add."
+    )
+    corrected_address: Optional[str] = None
+    corrected_city: Optional[str] = None
+    corrected_state: Optional[str] = None
+    corrected_zip: Optional[str] = None
 
 
 class LetterUpdate(BaseModel):

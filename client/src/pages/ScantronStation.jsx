@@ -82,6 +82,25 @@ export function IntakeArea() {
     const [analysis, setAnalysis] = useState(null)
     const [confirmedCpid, setConfirmedCpid] = useState('')
 
+    // Scan-confirm address verification (added 18Aug2026). addressVerified
+    // is the actual gate the backend checks before incrementing
+    // letter_exchange_count / adding to the print queue -- the automated
+    // address_score on each candidate (see MatchingService) is advisory
+    // only, never applied on its own. Reset whenever the confirmed person
+    // changes, since verification is per-person, not per-scan.
+    const [addressVerified, setAddressVerified] = useState(false)
+    const [addressEditing, setAddressEditing] = useState(false)
+    const [correctedAddress, setCorrectedAddress] = useState({ address: '', city: '', state: '', zip: '' })
+
+    const confirmedCandidate = analysis?.candidates?.find(c => c.cpid && c.cpid === confirmedCpid) || null
+
+    const resetAddressVerification = (cpid) => {
+        setConfirmedCpid(cpid)
+        setAddressVerified(false)
+        setAddressEditing(false)
+        setCorrectedAddress({ address: '', city: '', state: '', zip: '' })
+    }
+
     const captureAndRedact = async () => {
         const canvas = canvasRef.current
         const video = videoRef.current
@@ -188,7 +207,14 @@ export function IntakeArea() {
                 body: JSON.stringify({
                     image_data: lastCapture.dataUrl,
                     filename: `scan_${Date.now()}.jpg`,
-                    prisoner_cpid: confirmedCpid || null
+                    prisoner_cpid: confirmedCpid || null,
+                    address_verified: addressVerified,
+                    ...(addressEditing ? {
+                        corrected_address: correctedAddress.address || null,
+                        corrected_city: correctedAddress.city || null,
+                        corrected_state: correctedAddress.state || null,
+                        corrected_zip: correctedAddress.zip || null,
+                    } : {}),
                 })
             })
 
@@ -491,7 +517,7 @@ export function IntakeArea() {
                                                         <button
                                                             key={c.cpid || `${c.first_name}-${c.last_name}`}
                                                             type="button"
-                                                            onClick={() => setConfirmedCpid(c.cpid || '')}
+                                                            onClick={() => resetAddressVerification(c.cpid || '')}
                                                             className={`w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded-lg border transition-colors ${
                                                                 selected
                                                                     ? 'bg-calpop-olive/10 border-calpop-olive/50'
@@ -531,11 +557,100 @@ export function IntakeArea() {
                                             <input
                                                 type="text"
                                                 value={confirmedCpid}
-                                                onChange={(e) => setConfirmedCpid(e.target.value.toUpperCase())}
+                                                onChange={(e) => resetAddressVerification(e.target.value.toUpperCase())}
                                                 className="w-full bg-white border border-calpop-navy/25 rounded px-3 py-2 text-calpop-ink font-mono text-sm focus:border-calpop-blue outline-none"
                                                 placeholder="e.g. ABC123"
                                             />
                                         </div>
+
+                                        {confirmedCandidate && (
+                                            <div className="mt-4 pt-4 border-t border-calpop-navy/15">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <h5 className="text-xs font-bold text-calpop-ink uppercase tracking-tight">Address Verification</h5>
+                                                    {confirmedCandidate.address_score != null && (
+                                                        <span className="text-[10px] font-mono text-calpop-navy">
+                                                            automated match: {Math.round(confirmedCandidate.address_score)}%
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-calpop-accent mb-3 italic">
+                                                    Automated, not applied on its own -- confirm or correct it yourself.
+                                                </div>
+
+                                                <div className="bg-white border border-calpop-navy/15 rounded-lg p-3 mb-3 text-xs text-calpop-ink font-mono">
+                                                    {confirmedCandidate.address || '(no address on file)'}<br />
+                                                    {[confirmedCandidate.city, confirmedCandidate.state, confirmedCandidate.zip].filter(Boolean).join(', ') || '—'}
+                                                </div>
+
+                                                {addressVerified && !addressEditing ? (
+                                                    <div className="flex items-center gap-2 text-xs font-bold text-calpop-olive">
+                                                        <CheckCircle2 className="w-4 h-4" /> Address verified
+                                                    </div>
+                                                ) : addressEditing ? (
+                                                    <div className="space-y-2">
+                                                        <input
+                                                            className="w-full bg-white border border-calpop-navy/25 rounded px-3 py-2 text-calpop-ink text-sm focus:border-calpop-blue outline-none"
+                                                            placeholder="Corrected street address"
+                                                            value={correctedAddress.address}
+                                                            onChange={(e) => setCorrectedAddress({ ...correctedAddress, address: e.target.value })}
+                                                        />
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            <input
+                                                                className="bg-white border border-calpop-navy/25 rounded px-3 py-2 text-calpop-ink text-sm focus:border-calpop-blue outline-none"
+                                                                placeholder="City"
+                                                                value={correctedAddress.city}
+                                                                onChange={(e) => setCorrectedAddress({ ...correctedAddress, city: e.target.value })}
+                                                            />
+                                                            <input
+                                                                className="bg-white border border-calpop-navy/25 rounded px-3 py-2 text-calpop-ink text-sm focus:border-calpop-blue outline-none"
+                                                                placeholder="State"
+                                                                value={correctedAddress.state}
+                                                                onChange={(e) => setCorrectedAddress({ ...correctedAddress, state: e.target.value })}
+                                                            />
+                                                            <input
+                                                                className="bg-white border border-calpop-navy/25 rounded px-3 py-2 text-calpop-ink text-sm focus:border-calpop-blue outline-none"
+                                                                placeholder="Zip"
+                                                                value={correctedAddress.zip}
+                                                                onChange={(e) => setCorrectedAddress({ ...correctedAddress, zip: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setAddressVerified(true)}
+                                                            disabled={!correctedAddress.address}
+                                                            className="w-full py-2 bg-calpop-accent hover:brightness-95 disabled:opacity-40 text-white rounded-lg text-sm font-bold"
+                                                        >
+                                                            Save Correction &amp; Verify
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setAddressVerified(true)}
+                                                            className="flex-1 py-2 bg-calpop-olive/10 hover:bg-calpop-olive text-calpop-olive hover:text-white rounded-lg text-sm font-bold border border-calpop-olive/25 transition-colors"
+                                                        >
+                                                            Matches
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setAddressEditing(true)
+                                                                setCorrectedAddress({
+                                                                    address: confirmedCandidate.address || '',
+                                                                    city: confirmedCandidate.city || '',
+                                                                    state: confirmedCandidate.state || '',
+                                                                    zip: confirmedCandidate.zip || '',
+                                                                })
+                                                            }}
+                                                            className="flex-1 py-2 bg-calpop-accent/10 hover:bg-calpop-accent text-calpop-accent hover:text-white rounded-lg text-sm font-bold border border-calpop-accent/25 transition-colors"
+                                                        >
+                                                            Doesn't Match
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

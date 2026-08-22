@@ -91,6 +91,15 @@ class BatchService:
                 else:
                     envelope_pdf_paths_unsafe.append(env_path)
 
+                # Added 18Aug2026: this prisoner's envelope was just actually
+                # generated, so they're done with the print queue -- whether
+                # they got there via a confirmed scan or a manual add.
+                from db.models import Prisoner
+                prisoner_row = self.db.query(Prisoner).filter(Prisoner.cpid == cpid).first()
+                if prisoner_row:
+                    prisoner_row.queued_for_printing_at = None
+                    self.db.commit()
+
             except Exception as e:
                 print(f"ERROR in batch item {cpid}: {e}")
                 continue

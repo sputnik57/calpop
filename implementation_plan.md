@@ -142,41 +142,52 @@ deliberately-incomplete stand-in for that real process, not yet reconciled.
   are encrypted at rest; `bph_date` and everything else in that batch is
   plaintext (matches the existing `sponsor_name`/`Stage` precedent for
   fields that need to stay queryable/displayable without a decrypt pass).
-- **Scoped, not built (requested 18Aug2026, explicitly deferred to a later
-  session)** — closing the loop from scan to print:
-  1. On a confirmed scan (after the operator picks the right candidate in
-     `ScantronStation.jsx`, not at raw-OCR time), attempt an automated
-     regex/fuzzy match of the on-file address against the raw OCR text
-     blob, but still require human verification before trusting it — same
-     "nothing is auto-applied" discipline already used for candidate
-     matching and postmark-date extraction. No address-line extraction
-     exists yet; OCR only returns an unstructured text blob today, so this
-     needs new parsing, not just a comparison.
-  2. On confirmation, increment that prisoner's `letter_exchange_count`
-     (`letter exchange (received only)` in the roster).
-  3. Add that prisoner (with the verified address) to a new **print
-     queue** — mechanism not yet decided (a flag/timestamp column on
-     `Prisoner`, e.g. `queued_for_printing_at`, is the likely simplest
-     fit with the existing schema, vs. a separate join table).
-  4. Envelope Mgt's **Print Envelopes** tab changes from showing the full
-     roster (current behavior, confirmed live 18Aug2026 — every sponsee is
-     listed regardless of scan status) to showing only the print queue,
-     with a search box to manually find and add someone who needs an
-     envelope without having come through a scan.
-  5. A **letter status-history table** — a new `LetterStatusHistory`
-     (or similar) table logging every stage transition a letter goes
-     through (stage, timestamp, and ideally who/what triggered it), rather
-     than the current single `Letter.status` column that only ever holds
-     the *current* value and silently overwrites whatever it was before.
-     This is the natural companion to reconciling `Letter.status` against
-     the real workflow in `docs/status_workflow.md` (already flagged above
-     as not yet done) — the real process has ~12 main stages plus lettered
-     sub-steps and named actors (Rey, Juan, Harvey, Sponsor) at each one,
-     which a single mutable column can't represent an audit trail of. Not
-     designed yet: exact schema, whether sub-steps (e.g. "6a", "8S") get
-     their own rows or just free-text notes, and whether this replaces
-     `Letter.status` outright or sits alongside it (denormalized "current
-     stage" column for fast queries + full history table for the record).
+- **Built 22Aug2026** (was "Scoped, not built" below) — closing the loop
+  from scan to print, plus the letter status-history table:
+  1. **Address verification.** `MatchingService._address_score` fuzzy-matches
+     the on-file address alone (not name/facility) against the raw OCR text
+     and returns it per-candidate as `address_score` — automated, but never
+     applied on its own. `ScantronStation.jsx`'s confirm step shows the
+     on-file address next to that score with "Matches" / "Doesn't Match"
+     buttons; "Doesn't Match" reveals an editable correction that updates
+     the roster on save. Either path sets `address_verified: true` in the
+     `POST /api/letters/scan/` payload — that's the actual gate
+     `LetterService.create_letter_from_ocr` checks, not the score.
+  2. **`letter_exchange_count` increment** — happens in the same method,
+     gated on `address_verified` being `true`.
+  3. **Print queue** — went with the flag/timestamp column as expected:
+     `Prisoner.queued_for_printing_at` (migration `da35999b240d`). Set on a
+     verified scan confirm, or manually via the new
+     `POST /api/prisoners/{cpid}/queue-for-printing`
+     (`DELETE` to remove); cleared automatically in `BatchService.process_batch`
+     the moment that prisoner's envelope is actually generated.
+  4. **Print Envelopes tab** now shows `GET /api/prisoners/print-queue`
+     instead of the full roster, plus a search box (`EnvelopeMgtPage.jsx`)
+     that lazily fetches the full roster only to power search-and-add —
+     never displayed as a browsable list.
+  5. **Letter status-history table** — `LetterStatusHistory` (same
+     migration), one append-only row per status a letter has ever held
+     (via `LetterService._log_status`, called from `create_letter`,
+     `create_letter_from_ocr`, and `update_letter` on an actual change).
+     Exposed at `GET /api/letters/{id}/history`. Schema decisions that were
+     open when this was scoped, now settled: sub-steps (e.g. "6a", "8S")
+     are NOT structured — `note` is free text, unused so far; this table
+     sits *alongside* `Letter.status` (denormalized current value for fast
+     queries) rather than replacing it.
+  - **Verified directly against the running stack** (not just read): full
+    scan→verify→increment→queue round trip, the address-correction path,
+    manual queue add/remove, and — by invoking `BatchService.process_batch`
+    directly, bypassing a pre-existing unrelated auth gap (dev-login's
+    session user isn't linked to a `User` row, so `get_db_user` 403s on
+    `POST /api/letters` and `/api/batch/letters`; not fixed, out of scope
+    here) — that a successful batch print clears the queue. All test
+    writes were made against a real roster record (there was no synthetic
+    one available in this dev DB at the time) and were cleaned up /
+    restored afterward (letters deleted, `letter_exchange_count` and
+    `queued_for_printing_at` reset, address restored to its original
+    value) — nothing left behind in this environment's dev DB.
+  - **Not done:** no frontend for `GET /api/letters/{id}/history` yet (API
+    only); the pre-existing `get_db_user` 403 above.
 
 ## Detailed Roadmap
 

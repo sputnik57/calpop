@@ -11,6 +11,7 @@ from sqlalchemy import desc
 from db.models import (
     Letter,
     LetterDates,
+    LetterStatusHistory,
     LetterVersion,
     OCRArtifact,
     Prisoner,
@@ -120,6 +121,23 @@ class LetterService:
             selectinload(Letter.created_by_user)
         )
 
+    def _log_status(self, letter_id: int, status: str, changed_by: Optional[int] = None, note: Optional[str] = None) -> None:
+        """
+        Append-only audit trail for Letter.status -- see LetterStatusHistory's
+        docstring. Called for every status Letter ever holds, including the
+        first one at creation, not just later transitions -- otherwise the
+        history would be missing where a letter started.
+        """
+        self.db.add(LetterStatusHistory(letter_id=letter_id, status=status, changed_by=changed_by, note=note))
+
+    def get_status_history(self, letter_id: int) -> List[LetterStatusHistory]:
+        return (
+            self.db.query(LetterStatusHistory)
+            .filter(LetterStatusHistory.letter_id == letter_id)
+            .order_by(LetterStatusHistory.changed_at)
+            .all()
+        )
+
     def create_letter(self, data: LetterCreate, author_id: Optional[int] = None) -> Letter:
         letter = Letter(
             prisoner_cpid=data.prisoner_cpid,
@@ -139,7 +157,9 @@ class LetterService:
         if data.status == 'scanned':
              dates.scanned_at = datetime.utcnow()
         self.db.add(dates)
-        
+
+        self._log_status(letter.id, data.status, changed_by=author_id)
+
         self.db.commit()
         return self.get_letter(letter.id)
 
@@ -153,6 +173,11 @@ class LetterService:
         prisoner_cpid: Optional[str] = None,
         date_picked_up_po: Optional[datetime] = None,
         routing_status_override: Optional[str] = None,
+        address_verified: Optional[bool] = None,
+        corrected_address: Optional[str] = None,
+        corrected_city: Optional[str] = None,
+        corrected_state: Optional[str] = None,
+        corrected_zip: Optional[str] = None,
     ) -> Letter:
         from globals import excel_manager
         
@@ -217,6 +242,28 @@ class LetterService:
             self.db.add(p)
             self.db.flush()
 
+        # 1b. Scan-confirm address verification (added 18Aug2026). Gated on
+        # address_verified being explicitly True -- a human confirmed either
+        # the on-file address as shown, or the corrected one below. Nothing
+        # here is inferred from the OCR match score itself; that score is
+        # only ever advisory (see MatchingService._address_score), never a
+        # substitute for the human check. If address_verified is missing or
+        # False, the letter still gets created below -- this step is
+        # additive, not a hard gate on scan intake.
+        if corrected_address or corrected_city or corrected_state or corrected_zip:
+            if corrected_address:
+                p.address = corrected_address
+            if corrected_city:
+                p.city = corrected_city
+            if corrected_state:
+                p.state = corrected_state
+            if corrected_zip:
+                p.zip = corrected_zip
+
+        if address_verified:
+            p.letter_exchange_count = (p.letter_exchange_count or 0) + 1
+            p.queued_for_printing_at = datetime.utcnow()
+
         # 2. Create Letter
         # Status is the Envelope Mgt routing decision, not a generic "scanned"
         # label: no real external sponsor (blank / "Course" sentinel / brand
@@ -246,6 +293,8 @@ class LetterService:
         )
         self.db.add(letter)
         self.db.flush() # Get the letter ID
+
+        self._log_status(letter.id, routing_status, changed_by=author_id)
 
         # 3. Create Artifact
         artifact = OCRArtifact(
@@ -320,12 +369,17 @@ class LetterService:
         
         return query.order_by(desc(Letter.created_at)).offset(skip).limit(limit).all()
 
-    def update_letter(self, letter_id: int, updates: LetterUpdate) -> Letter:
+    def update_letter(self, letter_id: int, updates: LetterUpdate, changed_by: Optional[int] = None) -> Letter:
         letter = self.get_letter(letter_id)
-        
-        for field, value in updates.model_dump(exclude_unset=True).items():
+        previous_status = letter.status
+
+        changes = updates.model_dump(exclude_unset=True)
+        for field, value in changes.items():
             setattr(letter, field, value)
-            
+
+        if "status" in changes and changes["status"] != previous_status:
+            self._log_status(letter.id, changes["status"], changed_by=changed_by)
+
         self.db.commit()
         self.db.refresh(letter)
         return letter

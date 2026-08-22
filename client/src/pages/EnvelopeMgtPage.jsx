@@ -87,7 +87,12 @@ function AddNewPersonForm() {
 }
 
 function PrintEnvelopesPanel() {
-    const [prisoners, setPrisoners] = useState([])
+    // The print QUEUE, not the full roster -- people land here either
+    // automatically (a confirmed scan with a verified address, see
+    // ScantronStation.jsx) or manually via the search box below. The full
+    // roster is never displayed as a browsable list here; it's only ever
+    // fetched (lazily, on first search) to power that search.
+    const [queue, setQueue] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [selectedCpids, setSelectedCpids] = useState([])
@@ -96,18 +101,77 @@ function PrintEnvelopesPanel() {
     const [isProcessing, setIsProcessing] = useState(false)
     const [batchResult, setBatchResult] = useState(null)
 
-    useEffect(() => {
-        fetch('/api/prisoners', { credentials: 'include' })
+    const [searchTerm, setSearchTerm] = useState('')
+    const [allPrisoners, setAllPrisoners] = useState(null) // lazily loaded, search-only
+    const [addingCpid, setAddingCpid] = useState(null)
+
+    const loadQueue = () => {
+        setLoading(true)
+        fetch('/api/prisoners/print-queue', { credentials: 'include' })
             .then(res => {
-                if (!res.ok) throw new Error(`Failed to load prisoners (${res.status})`)
+                if (!res.ok) throw new Error(`Failed to load print queue (${res.status})`)
                 return res.json()
             })
-            .then(data => { setPrisoners(data || []); setLoading(false) })
+            .then(data => { setQueue(data || []); setLoading(false) })
             .catch(err => { setError(err.message); setLoading(false) })
-    }, [])
+    }
+
+    useEffect(() => { loadQueue() }, [])
 
     const toggleSelection = (cpid) => {
         setSelectedCpids(prev => prev.includes(cpid) ? prev.filter(c => c !== cpid) : [...prev, cpid])
+    }
+
+    const handleSearchChange = (value) => {
+        setSearchTerm(value)
+        if (allPrisoners === null && value.trim()) {
+            fetch('/api/prisoners', { credentials: 'include' })
+                .then(res => res.json())
+                .then(data => setAllPrisoners(data || []))
+                .catch(() => setAllPrisoners([]))
+        }
+    }
+
+    const searchResults = (searchTerm.trim() && allPrisoners)
+        ? allPrisoners.filter(p => {
+            const term = searchTerm.toLowerCase()
+            const alreadyQueued = queue.some(q => q.cpid === p.cpid)
+            if (alreadyQueued) return false
+            return p.cpid?.toLowerCase().includes(term)
+                || p.first_name?.toLowerCase().includes(term)
+                || p.last_name?.toLowerCase().includes(term)
+        }).slice(0, 8)
+        : []
+
+    const addToQueue = async (cpid) => {
+        setAddingCpid(cpid)
+        try {
+            const res = await fetch(`/api/prisoners/${cpid}/queue-for-printing`, {
+                method: 'POST',
+                credentials: 'include',
+            })
+            if (res.ok) {
+                setSearchTerm('')
+                loadQueue()
+            }
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setAddingCpid(null)
+        }
+    }
+
+    const removeFromQueue = async (cpid) => {
+        try {
+            await fetch(`/api/prisoners/${cpid}/queue-for-printing`, {
+                method: 'DELETE',
+                credentials: 'include',
+            })
+            setSelectedCpids(prev => prev.filter(c => c !== cpid))
+            loadQueue()
+        } catch (err) {
+            console.error(err)
+        }
     }
 
     const handleBatchSubmit = async () => {
@@ -128,6 +192,7 @@ function PrintEnvelopesPanel() {
                 setBatchResult(data)
                 setShowBatchModal(false)
                 setSelectedCpids([])
+                loadQueue() // successfully-printed prisoners were just cleared server-side
             }
         } catch (err) {
             console.error(err)
@@ -135,9 +200,6 @@ function PrintEnvelopesPanel() {
             setIsProcessing(false)
         }
     }
-
-    if (loading) return <div className="p-12 text-center text-calpop-navy font-mono animate-pulse">Consulting Perimeter Records...</div>
-    if (error) return <div className="p-12 text-center text-red-600">{error}</div>
 
     return (
         <div className="space-y-4">
@@ -238,25 +300,77 @@ function PrintEnvelopesPanel() {
                 </div>
             )}
 
-            <div className="bg-white rounded-xl border border-calpop-navy/15 shadow-sm divide-y divide-calpop-navy/10">
-                {prisoners.map((p) => {
-                    const isSelected = selectedCpids.includes(p.cpid)
-                    return (
-                        <div key={p.cpid} onClick={() => toggleSelection(p.cpid)}
-                             className="flex items-center gap-4 px-5 py-3.5 cursor-pointer hover:bg-calpop-bg/60">
-                            <input type="checkbox" checked={isSelected} readOnly className="w-4 h-4" />
-                            <div className="flex-1">
-                                <b className="text-calpop-ink">{p.first_name} {p.last_name}</b>
+            {/* Search to manually add someone who needs an envelope without
+                having come through a scan. Not a roster browser -- results
+                only ever show up here after typing, and never anyone
+                already queued. */}
+            <div className="relative">
+                <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    placeholder="Find a person to add to the print queue..."
+                    className="w-full bg-white border border-calpop-navy/25 rounded-lg px-4 py-2.5 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all"
+                />
+                {searchResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-calpop-navy/15 rounded-lg shadow-lg divide-y divide-calpop-navy/10 max-h-64 overflow-y-auto">
+                        {searchResults.map(p => (
+                            <div key={p.cpid} className="flex items-center gap-3 px-4 py-2.5">
+                                <div className="flex-1">
+                                    <b className="text-calpop-ink text-sm">{p.first_name} {p.last_name}</b>
+                                    <span className="ml-2 font-mono text-calpop-blue text-xs">{p.cpid}</span>
+                                </div>
+                                <button
+                                    onClick={() => addToQueue(p.cpid)}
+                                    disabled={addingCpid === p.cpid}
+                                    className="px-3 py-1 bg-calpop-accent hover:brightness-95 disabled:opacity-50 text-white rounded text-xs font-bold"
+                                >
+                                    {addingCpid === p.cpid ? '...' : 'Add to Queue'}
+                                </button>
                             </div>
-                            <span className="font-mono text-calpop-blue text-xs">{p.cpid}</span>
-                            <span className="text-calpop-navy text-xs">{p.facility || 'Facility Protected'}</span>
-                        </div>
-                    )
-                })}
-                {prisoners.length === 0 && (
-                    <div className="py-16 text-center text-calpop-navy text-sm">No records in the roster yet.</div>
+                        ))}
+                    </div>
                 )}
             </div>
+
+            {loading ? (
+                <div className="p-12 text-center text-calpop-navy font-mono animate-pulse">Loading print queue...</div>
+            ) : error ? (
+                <div className="p-12 text-center text-red-600">{error}</div>
+            ) : (
+                <div className="bg-white rounded-xl border border-calpop-navy/15 shadow-sm divide-y divide-calpop-navy/10">
+                    {queue.map((p) => {
+                        const isSelected = selectedCpids.includes(p.cpid)
+                        return (
+                            <div key={p.cpid} className="flex items-center gap-4 px-5 py-3.5 hover:bg-calpop-bg/60">
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleSelection(p.cpid)}
+                                    className="w-4 h-4 cursor-pointer"
+                                />
+                                <div className="flex-1 cursor-pointer" onClick={() => toggleSelection(p.cpid)}>
+                                    <b className="text-calpop-ink">{p.first_name} {p.last_name}</b>
+                                </div>
+                                <span className="font-mono text-calpop-blue text-xs">{p.cpid}</span>
+                                <span className="text-calpop-navy text-xs">{p.facility || 'Facility Protected'}</span>
+                                <button
+                                    onClick={() => removeFromQueue(p.cpid)}
+                                    className="text-calpop-navy hover:text-calpop-accent"
+                                    title="Remove from queue"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )
+                    })}
+                    {queue.length === 0 && (
+                        <div className="py-16 text-center text-calpop-navy text-sm">
+                            Nothing in the print queue. Confirm a scan with a verified address, or search above to add someone manually.
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="flex items-center justify-between pt-2">
                 <span className="text-calpop-navy text-sm">{selectedCpids.length} selected</span>

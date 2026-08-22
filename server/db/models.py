@@ -124,6 +124,15 @@ class Prisoner(Base, TimestampMixin):
     step_received_count: Mapped[Optional[int]] = mapped_column(Integer)  # roster's "Step (received only)"
     bph_date: Mapped[Optional[str]] = mapped_column(Text)  # Board of Parole Hearings date. Plaintext (not encrypted like the fields above) so upcoming hearings can be queried/sorted directly.
 
+    # Print queue (added 18Aug2026): set the moment a scan is confirmed with
+    # a human-verified address (see LetterService.create_letter_from_ocr),
+    # cleared once that prisoner's envelope is actually generated (see
+    # BatchService.process_batch). NULL = not queued. A plain nullable
+    # timestamp rather than a separate join table -- a prisoner is only ever
+    # in the queue once, so there's nothing a join table would model that
+    # this doesn't already.
+    queued_for_printing_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
     letters: Mapped[List["Letter"]] = relationship(back_populates="prisoner")
     assignments: Mapped[List["Assignment"]] = relationship(back_populates="prisoner")
 
@@ -182,6 +191,35 @@ class Letter(Base, TimestampMixin):
     ocr_artifacts: Mapped[List["OCRArtifact"]] = relationship(back_populates="letter", cascade="all, delete-orphan")
     redaction_events: Mapped[List["RedactionEvent"]] = relationship(back_populates="letter", cascade="all, delete-orphan")
     audit_logs: Mapped[List["AuditLog"]] = relationship(back_populates="letter", cascade="all, delete-orphan")
+    status_history: Mapped[List["LetterStatusHistory"]] = relationship(
+        back_populates="letter", cascade="all, delete-orphan", order_by="LetterStatusHistory.changed_at"
+    )
+
+
+class LetterStatusHistory(Base):
+    """
+    Added 18Aug2026, scoped from a direct request: Letter.status is a single
+    mutable column that only ever holds the *current* value -- every prior
+    stage a letter passed through is silently lost the moment it changes.
+    This is the audit trail. LetterService writes one row here every time
+    Letter.status is set (including the very first value, not just
+    subsequent changes), never edits or deletes existing rows.
+
+    `note` is free text for now, not structured sub-step tracking (e.g. the
+    real workflow's "6a", "8S" in docs/status_workflow.md) -- Letter.status
+    itself hasn't been reconciled against that real process yet, so this
+    table intentionally doesn't get ahead of it with a schema for sub-steps
+    that don't exist anywhere else yet.
+    """
+    id: Mapped[int] = mapped_column(primary_key=True)
+    letter_id: Mapped[int] = mapped_column(ForeignKey("letter.id"), nullable=False)
+    status: Mapped[str] = mapped_column(letter_status_enum, nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    changed_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
+    note: Mapped[Optional[str]] = mapped_column(Text)
+
+    letter: Mapped["Letter"] = relationship(back_populates="status_history")
+    changed_by_user: Mapped[Optional["User"]] = relationship()
 
 
 class LetterDates(Base):

@@ -434,6 +434,81 @@ def export_prisoners_excel(user=Depends(require_admin)):
     )
 
 
+@app.get("/api/prisoners/print-queue")
+def get_print_queue(user=Depends(require_admin)):
+    """
+    Envelope Mgt's Print Envelopes tab (added 18Aug2026): the queue, not the
+    full roster. A prisoner lands here either automatically (a confirmed
+    scan with a human-verified address, see LetterService.create_letter_from_ocr)
+    or manually (POST .../queue-for-printing below, for the "search for
+    someone who needs an envelope" case). Must be registered before
+    /api/prisoners/{cpid} or FastAPI would match this path as cpid="print-queue".
+    """
+    from db.models import Prisoner
+
+    db = SessionLocal()
+    try:
+        prisoners = (
+            db.query(Prisoner)
+            .filter(Prisoner.queued_for_printing_at.isnot(None))
+            .order_by(Prisoner.queued_for_printing_at)
+            .all()
+        )
+        return [
+            {
+                "cpid": p.cpid,
+                "first_name": p.first_name,
+                "last_name": p.last_name,
+                "facility": p.facility,
+                "address": p.address,
+                "city": p.city,
+                "state": p.state,
+                "zip": p.zip,
+                "safety_classification": p.safety_classification,
+                "queued_for_printing_at": p.queued_for_printing_at,
+            }
+            for p in prisoners
+        ]
+    finally:
+        db.close()
+
+
+@app.post("/api/prisoners/{cpid}/queue-for-printing")
+def add_to_print_queue(cpid: str, user=Depends(require_admin)):
+    """Manual add to the print queue -- the "search for a person who needs
+    an envelope" path, for anyone who didn't come through a scan."""
+    from datetime import datetime
+    from db.models import Prisoner
+
+    db = SessionLocal()
+    try:
+        prisoner = db.query(Prisoner).filter(Prisoner.cpid == cpid).first()
+        if not prisoner:
+            raise HTTPException(status_code=404, detail="Prisoner not found")
+        prisoner.queued_for_printing_at = datetime.utcnow()
+        db.commit()
+        return {"cpid": cpid, "queued_for_printing_at": prisoner.queued_for_printing_at}
+    finally:
+        db.close()
+
+
+@app.delete("/api/prisoners/{cpid}/queue-for-printing")
+def remove_from_print_queue(cpid: str, user=Depends(require_admin)):
+    """Manual removal, for a queued entry that turns out not to be needed."""
+    from db.models import Prisoner
+
+    db = SessionLocal()
+    try:
+        prisoner = db.query(Prisoner).filter(Prisoner.cpid == cpid).first()
+        if not prisoner:
+            raise HTTPException(status_code=404, detail="Prisoner not found")
+        prisoner.queued_for_printing_at = None
+        db.commit()
+        return {"cpid": cpid, "queued_for_printing_at": None}
+    finally:
+        db.close()
+
+
 @app.get("/api/prisoners/{cpid}")
 def get_prisoner_info(cpid: str, user=Depends(require_admin_or_sponsor)):
     """

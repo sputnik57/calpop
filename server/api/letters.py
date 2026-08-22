@@ -11,7 +11,7 @@ from db.models import User
 from auth.dependencies import require_admin, require_admin_or_sponsor
 from auth.models import UserContext
 from config import get_settings
-from schemas.letter import LetterCreate, LetterOut, LetterScanIngest, LetterUpdate
+from schemas.letter import LetterCreate, LetterOut, LetterScanIngest, LetterStatusHistoryOut, LetterUpdate
 from services.letter_service import LetterService, AmbiguousSponsorRoutingError
 from services.matching_service import MatchingService
 from services.ocr_service import OCRService
@@ -93,6 +93,11 @@ def ingest_scanned_letter(
             prisoner_cpid=payload.prisoner_cpid,
             date_picked_up_po=payload.date_picked_up_po,
             routing_status_override=payload.routing_status_override,
+            address_verified=payload.address_verified,
+            corrected_address=payload.corrected_address,
+            corrected_city=payload.corrected_city,
+            corrected_state=payload.corrected_state,
+            corrected_zip=payload.corrected_zip,
         )
 
         return letter
@@ -191,9 +196,25 @@ def update_letter(
     updates: LetterUpdate,
     user_context: UserContext = Depends(require_admin),
     db: Session = Depends(get_db),
+    db_user=Depends(get_db_user),
 ):
     service = _service(db)
     try:
-        return service.update_letter(letter_id, updates)
+        return service.update_letter(letter_id, updates, changed_by=db_user.id if db_user else None)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/{letter_id}/history", response_model=List[LetterStatusHistoryOut])
+def get_letter_status_history(
+    letter_id: int,
+    user_context: UserContext = Depends(require_admin_or_sponsor),
+    db: Session = Depends(get_db),
+):
+    """Full audit trail of every status this letter has held, in order."""
+    service = _service(db)
+    try:
+        service.get_letter(letter_id)  # existence check
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return service.get_status_history(letter_id)

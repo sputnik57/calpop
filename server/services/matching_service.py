@@ -101,9 +101,25 @@ class MatchingService:
                 "state": str(row.get("state", "") or "") or None,
                 "zip": str(row.get("zip", "") or "") or None,
                 "score": round(score, 1),
+                "address_score": MatchingService._address_score(query_upper, address_blob),
             })
 
         return results
+
+    @staticmethod
+    def _address_score(query_upper: str, address_blob: str) -> Optional[float]:
+        """
+        Fuzzy-match the on-file address alone (not name/facility) against the
+        raw OCR text -- a separate, narrower signal than the overall
+        candidate score above, meant for the scan-confirm "does the address
+        on file match what's on this envelope" step. Automated, but never
+        auto-applied -- same discipline as candidate selection itself; the
+        caller still requires a human to confirm or correct it.
+        """
+        address_blob = (address_blob or "").strip()
+        if not address_blob:
+            return None
+        return round(fuzz.token_set_ratio(query_upper, address_blob.upper()), 1)
 
     @staticmethod
     def _score_postgres_rows(query_upper: str, id_tokens: List[str], db: Session) -> List[Dict]:
@@ -134,6 +150,7 @@ class MatchingService:
                 "state": p.state,
                 "zip": p.zip,
                 "score": round(score, 1),
+                "address_score": MatchingService._address_score(query_upper, address_blob),
             })
 
         return results
