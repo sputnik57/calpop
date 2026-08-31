@@ -10,6 +10,7 @@ import { PrisonersPage } from './pages/PrisonersPage'
 import { EnvelopeMgtPage } from './pages/EnvelopeMgtPage'
 import { SponsorsPage } from './pages/SponsorsPage'
 import { ScanLetterUpload } from './pages/ScanLetterUpload'
+import { TranslateLetter } from './pages/TranslateLetter'
 
 function App() {
     return (
@@ -23,6 +24,7 @@ function App() {
                     <Route path="letters/new" element={<LetterEditor />} />
                     <Route path="letters/:id" element={<LetterEditor />} />
                     <Route path="letters/:id/scan" element={<ScanLetterUpload />} />
+                    <Route path="translate" element={<TranslateLetter />} />
                     <Route path="scantron" element={<IntakeArea />} />
                     <Route path="envelope" element={<EnvelopeMgtPage />} />
                     <Route path="prisoners" element={<PrisonersPage />} />

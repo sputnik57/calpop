@@ -1,9 +1,10 @@
-import { Shield, LayoutDashboard, Mail, FileText, Database, Users, LogIn } from 'lucide-react'
+import { Shield, LayoutDashboard, Mail, FileText, Database, Users, LogIn, Languages } from 'lucide-react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 
 const NAV_ITEMS = [
     { label: 'Dashboard', to: '/', icon: LayoutDashboard, match: (path) => path === '/' },
     { label: 'Envelope Mgt', to: '/envelope', icon: Mail, match: (path) => path.startsWith('/envelope') || path === '/scantron' },
+    { label: 'Translate', to: '/translate', icon: Languages, match: (path) => path.startsWith('/translate') },
     { label: 'Letter Mgt', to: '/letters', icon: FileText, match: (path) => path.startsWith('/letters') || path.startsWith('/inbox') },
     { label: 'DB Mgt', to: '/prisoners', icon: Database, match: (path) => path.startsWith('/prisoners') },
     { label: 'Sponsors', to: '/sponsors', icon: Users, match: (path) => path.startsWith('/sponsors') },
@@ -15,7 +16,7 @@ export function Layout() {
     return (
         <div className="min-h-screen bg-calpop-bg text-calpop-ink">
             <header className="bg-calpop-navy">
-                <div className="max-w-6xl mx-auto px-8 py-7 flex items-center justify-between">
+                <div className="max-w-[1600px] mx-auto px-8 py-7 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <Shield className="w-8 h-8 text-calpop-accent" />
                         <div>
@@ -51,7 +52,7 @@ export function Layout() {
                 </div>
             </header>
 
-            <main className="max-w-6xl mx-auto px-8 py-8">
+            <main className="max-w-[1600px] mx-auto px-8 py-8">
                 <Outlet />
             </main>
         </div>
