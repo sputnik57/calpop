@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Info } from 'lucide-react'
 
 const FIELD_LABELS = {
     first_name: 'First name',
@@ -105,57 +106,56 @@ function ExcelUploader({ onUploadSuccess }) {
     const hasChanges = diff && (diff.new.length > 0 || diff.changed.length > 0)
 
     return (
-        <div className="bg-white border border-calpop-navy/15 shadow-sm p-6 rounded-xl">
-            <h3 className="text-lg font-bold text-calpop-ink mb-4">
-                Excel Roster Upload
-            </h3>
-
-            <div className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-calpop-navy mb-2">
-                        Upload Prisoner Excel File
-                    </label>
-                    <input
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={handleFileUpload}
-                        disabled={uploading || applying}
-                        className="block w-full text-sm text-calpop-navy
-                     file:mr-4 file:py-2 file:px-4
+        <div className="bg-white border border-calpop-navy/15 shadow-sm p-4 rounded-xl">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+                <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileUpload}
+                    disabled={uploading || applying}
+                    className="block text-xs text-calpop-navy
+                     file:mr-3 file:py-1.5 file:px-3
                      file:rounded-full file:border-0
-                     file:text-sm file:font-semibold
+                     file:text-xs file:font-semibold
                      file:bg-calpop-blue file:text-white
                      hover:file:brightness-95
                      disabled:opacity-50"
-                    />
-                    <p className="mt-1 text-xs text-calpop-navy">
-                        The database is the source of truth -- this only stages
-                        changes for review. Nothing is applied until you confirm below.
-                    </p>
-                </div>
+                />
+                <Info
+                    className="w-4 h-4 text-calpop-navy/50 hover:text-calpop-navy cursor-help shrink-0"
+                    title="The database is the source of truth -- this only stages changes for review. Nothing is applied until you confirm below."
+                />
+            </div>
 
+            <div className="space-y-3 mt-3">
                 {uploading && (
                     <div className="flex items-center space-x-2 text-calpop-blue">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-calpop-blue"></div>
-                        <span className="text-sm">Comparing against the database...</span>
+                        <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-calpop-blue"></div>
+                        <span className="text-xs">Comparing against the database...</span>
                     </div>
                 )}
 
                 {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                        <h4 className="text-sm font-medium text-red-700">Error</h4>
-                        <p className="text-sm text-red-600 mt-1">{error}</p>
+                    <div className="bg-red-50 border border-red-200 rounded-md p-2.5">
+                        <h4 className="text-xs font-medium text-red-700">Error</h4>
+                        <p className="text-xs text-red-600 mt-1">{error}</p>
                     </div>
                 )}
 
                 {diff && (
-                    <div className="bg-calpop-bg border border-calpop-navy/15 rounded-lg p-4 space-y-4">
-                        <div className="flex items-center gap-4 text-xs font-mono uppercase">
+                    <div className="bg-calpop-bg border border-calpop-navy/15 rounded-lg p-3 space-y-3">
+                        <div className="flex items-center gap-4 text-xs font-mono uppercase flex-wrap">
                             <span className="text-calpop-olive">{diff.new.length} new</span>
                             <span className="text-calpop-accent">{diff.changed.length} changed</span>
                             <span className="text-calpop-navy">{diff.unchanged_count} unchanged</span>
                             {diff.missing_from_file.length > 0 && (
                                 <span className="text-calpop-navy">{diff.missing_from_file.length} in DB, not in file</span>
+                            )}
+                            {diff.no_cpid_categorized?.length > 0 && (
+                                <span className="text-calpop-navy/70">{diff.no_cpid_categorized.length} no CPID (categorized)</span>
+                            )}
+                            {diff.skipped_missing_cpid?.length > 0 && (
+                                <span className="text-red-600">{diff.skipped_missing_cpid.length} no CPID (needs review)</span>
                             )}
                         </div>
 
@@ -200,18 +200,50 @@ function ExcelUploader({ onUploadSuccess }) {
                             </p>
                         )}
 
-                        <div className="flex gap-3 pt-2">
+                        {diff.skipped_missing_cpid?.length > 0 && (
+                            <div>
+                                <h5 className="text-xs font-bold text-red-600 uppercase mb-2">No CPID — needs review</h5>
+                                <p className="text-xs text-calpop-navy mb-2">
+                                    Blank CPID and no recognized Stage — not new, not changed, not applied either way.
+                                </p>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {diff.skipped_missing_cpid.map(r => (
+                                        <div key={r.excel_row} className="text-xs font-mono text-calpop-ink bg-red-50 border border-red-200 rounded px-2 py-1">
+                                            Row {r.excel_row} — {r.first_name} {r.last_name} {r.cdcr_number ? `(${r.cdcr_number})` : ''}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {diff.no_cpid_categorized?.length > 0 && (
+                            <div>
+                                <h5 className="text-xs font-bold text-calpop-navy uppercase mb-2">No CPID — categorized (expected)</h5>
+                                <p className="text-xs text-calpop-navy mb-2">
+                                    Blank CPID, but has a recognized Stage — not an error, just not tracked as an active sponsee.
+                                </p>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {diff.no_cpid_categorized.map(r => (
+                                        <div key={r.excel_row} className="text-xs font-mono text-calpop-navy bg-white border border-calpop-navy/15 rounded px-2 py-1">
+                                            Row {r.excel_row} — {r.first_name} {r.last_name} — Stage {r.stage}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex gap-2 pt-1">
                             <button
                                 onClick={handleApply}
                                 disabled={applying || !hasChanges}
-                                className="bg-calpop-accent hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold"
+                                className="bg-calpop-accent hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg text-xs font-bold"
                             >
                                 {applying ? 'Applying...' : hasChanges ? 'Apply changes' : 'Nothing to apply'}
                             </button>
                             <button
                                 onClick={() => setPreview(null)}
                                 disabled={applying}
-                                className="bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-navy px-4 py-2 rounded-lg text-sm font-bold border border-calpop-navy/15"
+                                className="bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-navy px-3 py-1.5 rounded-lg text-xs font-bold border border-calpop-navy/15"
                             >
                                 Cancel
                             </button>
@@ -220,9 +252,9 @@ function ExcelUploader({ onUploadSuccess }) {
                 )}
 
                 {status && (
-                    <div className="bg-calpop-olive/10 border border-calpop-olive/25 rounded-md p-3">
-                        <h4 className="text-sm font-medium text-calpop-olive">Applied successfully</h4>
-                        <p className="text-sm text-calpop-ink mt-1">{status.message}</p>
+                    <div className="bg-calpop-olive/10 border border-calpop-olive/25 rounded-md p-2.5">
+                        <h4 className="text-xs font-medium text-calpop-olive">Applied successfully</h4>
+                        <p className="text-xs text-calpop-ink mt-1">{status.message}</p>
                     </div>
                 )}
             </div>

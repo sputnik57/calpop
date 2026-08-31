@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Lock, FileText, Activity } from 'lucide-react'
 import { SponsorshipStats } from '../components/SponsorshipStats'
-import ExcelUploader from '../components/ExcelUploader'
 
 export function Dashboard() {
     const [stats, setStats] = useState({ total_letters: 0, pending_action: 0, completed: 0 })
@@ -62,20 +61,6 @@ export function Dashboard() {
 
             {/* New Sponsorship Stats Component */}
             <SponsorshipStats key={stats.total_letters} />
-
-            {/* Excel Upload Section */}
-            <div className="md:col-span-3 mt-6">
-                <ExcelUploader onUploadSuccess={() => {
-                    // Refresh stats after successful upload
-                    fetch('/api/stats')
-                        .then(res => res.json())
-                        .then(data => setStats(data))
-                        .catch(console.error)
-
-                    // Force re-render of SponsorshipStats by updating stats
-                    setStats(prev => ({ ...prev, total_letters: prev.total_letters + 1 }))
-                }} />
-            </div>
         </div>
     )
 }
