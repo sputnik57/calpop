@@ -24,6 +24,29 @@ OLLAMA_OCR_PROMPT = (
     'certain you are of the transcription overall>}'
 )
 
+# Separate from OLLAMA_OCR_PROMPT above on purpose -- that one explicitly
+# forbids translation (needed verbatim for envelope/person matching); this
+# one is for Letter Mgt's Spanish-language letter workflow (added 31Aug2026),
+# where translation is the whole point. Always shown to a human (a bilingual
+# reviewer, outside the app) for correction before it reaches a sponsor --
+# this prompt's job is a first-pass draft, not a final translation.
+OLLAMA_TRANSLATE_PROMPT = (
+    "You are transcribing and translating a scanned handwritten or printed letter for a "
+    "prisoner correspondence program. The letter may be in Spanish or English. "
+    "First, transcribe every line of text in the image exactly as written, preserving line "
+    "breaks, in its original language. Do not correct spelling/grammar in the transcription. "
+    "If a word is illegible, write [illegible] in its place. Then provide a natural, complete "
+    "English translation of the full letter -- this translation is a first-pass draft that a "
+    "human bilingual reviewer will check and correct before it is sent to anyone, so prioritize "
+    "completeness and natural phrasing over hedging.\n\n"
+    "Respond with ONLY a JSON object of this form, no other text:\n"
+    '{"original_text": "<full transcription, original language>", '
+    '"translation": "<full English translation>", '
+    '"detected_language": "<e.g. Spanish, English>", '
+    '"confidence": <number from 0.0 to 1.0 reflecting how certain you are of the transcription '
+    "and translation overall>}"
+)
+
 
 class OCRService:
     def __init__(self):
@@ -161,3 +184,68 @@ class OCRService:
         with open(path, "rb") as image_file:
             content = image_file.read()
         return self.process_image(content)
+
+    def translate_image(self, image_content: bytes) -> Dict[str, Any]:
+        """
+        Transcribe + translate a letter page for Letter Mgt's Spanish-language
+        workflow (added 31Aug2026). Local-only, deliberately -- unlike
+        process_image, this has no cloud fallback at all, since letter
+        *content* (not just an envelope for person-matching) is exactly the
+        PII this app's whole local-OCR design exists to keep off the
+        internet. If OCR_PROVIDER isn't 'local', this raises rather than
+        silently sending letter content to Google Vision.
+
+        Returns a dict the caller shows to a human for correction before it
+        goes anywhere near a sponsor -- this is a first-pass draft, not a
+        finished translation.
+        """
+        if settings.ocr_provider != "local":
+            raise ValueError(
+                "Translation requires OCR_PROVIDER=local -- letter content should never be sent "
+                "to a cloud OCR/translation service. Current provider: "
+                f"{settings.ocr_provider!r}."
+            )
+
+        image_b64 = base64.b64encode(image_content).decode("ascii")
+        payload = {
+            "model": settings.ollama_vision_model,
+            "prompt": OLLAMA_TRANSLATE_PROMPT,
+            "images": [image_b64],
+            "format": "json",
+            "stream": False,
+            "options": {"temperature": 0.0},
+        }
+        url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
+
+        try:
+            resp = httpx.post(url, json=payload, timeout=settings.ollama_timeout_seconds)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            raise ValueError(
+                f"Local translation error: could not reach Ollama at {settings.ollama_base_url} "
+                f"(model={settings.ollama_vision_model}): {e}"
+            )
+
+        raw_response = resp.json().get("response", "")
+        result = {
+            "original_text": "",
+            "translation": "",
+            "detected_language": None,
+            "confidence": 0.5,
+            "confidence_is_self_reported": False,
+        }
+        try:
+            parsed = json.loads(raw_response)
+            result["original_text"] = parsed.get("original_text", "")
+            result["translation"] = parsed.get("translation", "")
+            result["detected_language"] = parsed.get("detected_language")
+            conf_val = parsed.get("confidence")
+            if isinstance(conf_val, (int, float)):
+                result["confidence"] = max(0.0, min(1.0, float(conf_val)))
+                result["confidence_is_self_reported"] = True
+        except (json.JSONDecodeError, TypeError):
+            # Model didn't return valid JSON -- fall back to raw text as the
+            # translation field so the operator sees *something* to correct
+            # rather than an empty box, with a neutral confidence.
+            result["translation"] = raw_response
+        return result

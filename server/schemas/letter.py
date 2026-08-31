@@ -128,9 +128,56 @@ class RedactedFileIn(BaseModel):
 
 class RedactedUploadRequest(BaseModel):
     files: List[RedactedFileIn]
+    exchange_override: Optional[str] = None
+    sponsor_id_override: Optional[int] = None
 
 
 class RedactedUploadResult(BaseModel):
     folder_path: str
     uploaded_files: List[dict]
     reply_doc: dict
+
+
+class UploadDestinationPreview(BaseModel):
+    """Read-only preview of where upload-redacted would file this letter --
+    lets the frontend show a "does this look right?" confirmation before the
+    real upload runs, since the folder path is derived from database state
+    (sponsor_name, letter_exchange_count) that's usually right but isn't
+    guaranteed to be."""
+    folder_path: str
+    cpid: str
+    sponsor_name: str
+    sponsor_pseudonym: str
+    sponsor_id: int
+    sponsor_id_is_override: bool
+    received_count: int
+    exchange_label: str
+    exchange_label_is_override: bool
+    reply_filename: str
+    existing_folders: List[str]
+
+
+class TranslateImageRequest(BaseModel):
+    image_data: str = Field(..., description="Base64 encoded (data URL or bare) redacted page image")
+
+
+class TranslateImageResult(BaseModel):
+    original_text: str
+    translation: str
+    detected_language: Optional[str] = None
+    confidence: float
+    confidence_is_self_reported: bool
+
+
+class TranslationPageIn(BaseModel):
+    original_text: str = ""
+    translation: str = ""
+    detected_language: Optional[str] = None
+
+
+class TranslationDocxRequest(BaseModel):
+    pages: List[TranslationPageIn]
+    personal_use: bool = Field(
+        False,
+        description="True for the standalone Translate tool (Rey reading his own sponsee's letter) -- swaps the doc heading away from the sponsor-facing 'needs bilingual review' framing, since there's no reviewer and nothing is ever uploaded.",
+    )

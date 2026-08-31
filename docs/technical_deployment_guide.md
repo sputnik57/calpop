@@ -9,6 +9,7 @@
 
 ## 2. Prerequisites
 *   **Docker & Docker Compose**: Must be installed on the host machine.
+*   **Ollama**: Must be running on the host machine (not in Docker), with the vision model pulled — `ollama pull qwen2.5vl:7b`. This is what does all letter/envelope OCR and the Spanish-language translation workflow, fully offline. Not a pip package, so it isn't in `server/requirements.txt` — install separately from [ollama.com](https://ollama.com). The backend reaches it via `OLLAMA_BASE_URL` (default `http://host.docker.internal:11434`, i.e. the host from inside the backend container — use `http://localhost:11434` if the backend runs outside Docker).
 *   **Azure AD Tenant**: Registered App Credential for authentication.
 *   **OneDrive Account (Optional)**: For "Sponsor Sync" features if enabled.
 
@@ -24,6 +25,9 @@ Create a `.env` file in the root directory. See `.env.example` for a template.
 | `AZURE_CLIENT_SECRET` | Client Secret Value. |
 | `FILE_ENCRYPTION_KEY` | 32-byte Fernet key for securing files at rest. |
 | `COOKIE_SECRET` | Random string for session signature. |
+| `OLLAMA_BASE_URL` | Base URL of the host's Ollama server (default `http://host.docker.internal:11434`). |
+| `OLLAMA_VISION_MODEL` | Ollama model tag for OCR/translation (default `qwen2.5vl:7b`). Must be pulled on the host first. |
+| `OCR_PROVIDER` | `local` (default, Ollama-only) or `google_vision`. Letter-content translation refuses to run at all unless this is `local` — see `OCRService.translate_image`. |
 
 ## 4. Deployment (Docker)
 The system is designed to run as a multi-container application.

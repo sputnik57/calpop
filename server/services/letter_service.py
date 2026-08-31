@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 try:
     from zoneinfo import ZoneInfo
@@ -428,11 +429,164 @@ class LetterService:
         self.db.commit()
         return self.get_letter(letter.id)
 
+    @staticmethod
+    def _guess_next_exchange_label(existing_folders: List[str]) -> str:
+        """
+        Best-effort default: one more than the highest "exchangeN" folder
+        that actually exists on OneDrive, matching what a human would do by
+        looking at the real folder list. Falls back to "1" if only an
+        "intro"/"intro-sent" folder exists (no numbered exchange yet), or
+        "intro" if nothing exists at all (brand new sponsee).
+
+        Tolerant of real naming variation seen in practice, not just the
+        clean "exchangeN-sent" case: an accidental extra dash
+        ("exchange-2-sent", a real typo found in FON949's history) and
+        combined ranges ("exchange2-3-sent", for two exchanges sent
+        together) both parse correctly -- the combined-range case takes the
+        higher of the two numbers, since that's the last one actually sent.
+        """
+        pattern = re.compile(r"^exchange-?(\d+)(?:-(\d+))?", re.IGNORECASE)
+        highest = 0
+        for name in existing_folders:
+            match = pattern.match(name)
+            if not match:
+                continue
+            candidates = [int(g) for g in match.groups() if g]
+            highest = max(highest, *candidates)
+
+        if highest > 0:
+            return str(highest + 1)
+        if any(name.lower().startswith("intro") for name in existing_folders):
+            return "1"
+        return "intro"
+
+    def resolve_upload_destination(
+        self, letter_id: int, exchange_override: Optional[str] = None,
+        sponsor_id_override: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Read-only resolution of where upload_redacted_to_sponsor_onedrive
+        would file this letter -- no storage calls, no DB writes. Added
+        30Aug2026 so the frontend can show a "here's where this is about to
+        go, does that look right?" confirmation before actually uploading:
+        the folder path is derived from database state (sponsor_name lookup,
+        letter_exchange_count) that's usually right but was wrong at least
+        once in practice (the intro/exchange offset bug found the same day),
+        so a pre-flight human check is worth the extra round trip.
+
+        `exchange_override`, also added 30Aug2026: the default guess below is
+        just that -- a guess, not a rule that always holds. Always shown to a
+        human for confirmation before use, and always overridable (e.g. "5"
+        or "intro").
+
+        `sponsor_id_override`, added 30Aug2026 after a real case: an Excel
+        sync overwrote a prisoner's sponsor_name from "Matt E" to "Matt" --
+        plain-string mismatch against the Sponsor table (deliberately not a
+        foreign key, see the Sponsor model's docstring), which blocked the
+        upload with a "No Sponsor record found" error and no in-app way to
+        recover except editing the prisoner record directly. Lets the
+        operator pick the correct real Sponsor by id when the automatic
+        name-match fails or picks the wrong one, without needing to fix the
+        underlying data first -- same "always overridable" pattern as
+        exchange_override.
+
+        Raises ValueError under the same conditions as the real upload (see
+        that method's docstring) -- both should agree on whether an upload
+        is even possible before either one is called.
+        """
+        letter = self.get_letter(letter_id)
+        prisoner = letter.prisoner
+
+        if sponsor_id_override is not None:
+            sponsor = self.db.query(Sponsor).filter(Sponsor.id == sponsor_id_override).first()
+            if not sponsor:
+                raise ValueError(f"No Sponsor record with id={sponsor_id_override}.")
+        else:
+            if not prisoner or not prisoner.sponsor_name:
+                raise ValueError(f"Letter {letter_id}'s prisoner has no sponsor_name assigned yet.")
+            sponsor = self.db.query(Sponsor).filter(Sponsor.name == prisoner.sponsor_name).first()
+            if not sponsor:
+                raise ValueError(
+                    f"No Sponsor record found matching sponsor_name={prisoner.sponsor_name!r}. "
+                    "Pick the correct sponsor above, or add this sponsor in the Sponsors tab first."
+                )
+        if not sponsor.pseudonym:
+            raise ValueError(
+                f"Sponsor {sponsor.name!r} has no pseudonym set. Set one in the Sponsors tab "
+                "(it must match the sponsor's existing OneDrive folder name) before uploading."
+            )
+
+        received_count = letter.letter_exchange_count
+        if received_count is None:
+            raise ValueError(
+                f"Letter {letter_id}'s prisoner has no letter_exchange_count yet -- "
+                "the address must be verified at scan-confirm before this letter can be filed."
+            )
+
+        cpid = prisoner.cpid
+        parent_path = f"CAL POP/...PRISONERS/{sponsor.pseudonym}/{cpid}"
+
+        # Surfaces the sponsee's real existing folder history (e.g.
+        # "intro-sent", "exchange4-sent") so a human can actually verify the
+        # guessed/overridden exchange number against real data, rather than
+        # confirming a number with no way to check it -- added 30Aug2026
+        # after Rey pointed out the confirmation step was otherwise asking
+        # him to verify something he had no way to see without separately
+        # opening OneDrive himself. This listing is now also the basis for
+        # the default guess itself (see below), not just a display aid.
+        from config import get_settings
+        from services.storage_service import get_storage_service
+
+        existing_folders = []
+        try:
+            settings = get_settings()
+            storage = get_storage_service(settings, self.db)
+            existing_folders = sorted(
+                item.name for item in storage.list_folder(parent_path) if item.is_folder
+            )
+        except FileNotFoundError:
+            pass  # brand new sponsee, no folder there yet -- not an error
+
+        if exchange_override:
+            exchange_label = exchange_override.strip()
+        else:
+            # Default guess is derived from the REAL existing OneDrive folder
+            # names, not from letter_exchange_count -- Rey's correction,
+            # 30Aug2026, after the count-based formula was confirmed wrong
+            # twice in one session against two different real sponsees with
+            # different folder histories (FON949 has an "intro" folder before
+            # its numbered exchanges; IJG749 has none, plus a "-push" round
+            # that got merged into the next one instead of getting its own
+            # folder). letter_exchange_count has no reliable, universal
+            # relationship to the next folder number -- but "one more than
+            # the highest exchangeN folder that actually exists" does, and
+            # is exactly what a human would do by eye. Verified against both
+            # real cases: correctly produces "5" for each.
+            exchange_label = self._guess_next_exchange_label(existing_folders)
+        folder_name = exchange_label if exchange_label == "intro" else f"exchange{exchange_label}"
+        folder_path = f"{parent_path}/{folder_name}"
+
+        return {
+            "folder_path": folder_path,
+            "cpid": cpid,
+            "sponsor_name": sponsor.name,
+            "sponsor_pseudonym": sponsor.pseudonym,
+            "sponsor_id": sponsor.id,
+            "sponsor_id_is_override": sponsor_id_override is not None,
+            "received_count": received_count,
+            "exchange_label": exchange_label,
+            "exchange_label_is_override": bool(exchange_override),
+            "reply_filename": f"{cpid}_{exchange_label}_out.docx",
+            "existing_folders": existing_folders,
+        }
+
     def upload_redacted_to_sponsor_onedrive(
         self,
         letter_id: int,
         files: List[Tuple[str, bytes]],
         changed_by: Optional[int] = None,
+        exchange_override: Optional[str] = None,
+        sponsor_id_override: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         The "Scan Letter" write path: takes already-redacted page image(s)
@@ -442,47 +596,30 @@ class LetterService:
         into (see implementation_plan.md, "Letter Mgt planning").
 
         `files` is a list of (filename, content) for the redacted page(s) --
-        a letter can span multiple pages/images. Exchange number N is the
-        letter's own letter_exchange_count (Prisoner.letter_exchange_count
-        at scan-confirm time) -- correct as long as no other letter for the
-        same prisoner is processed between intake and this upload step,
-        which holds for CalPOP's single-operator workflow.
+        a letter can span multiple pages/images. `exchange_override` and
+        `sponsor_id_override`: see resolve_upload_destination's docstring --
+        both defaults are unreliable in practice, so the frontend always
+        shows the resolved destination for confirmation and lets the
+        operator correct either before calling this method.
 
         Raises ValueError if the prisoner's sponsor has no matching Sponsor
         record, or that Sponsor has no pseudonym set -- both required to
         resolve the OneDrive folder, and both are things Rey fixes via the
-        Sponsors tab, not something this method can guess at.
+        Sponsors tab, not something this method can guess at. See
+        resolve_upload_destination for the read-only version of this same
+        resolution, used to show a pre-upload confirmation in the UI.
         """
         from config import get_settings
         from services.storage_service import get_storage_service
         from services.artifact_docx import build_blank_reply_docx
 
+        destination = self.resolve_upload_destination(
+            letter_id, exchange_override=exchange_override, sponsor_id_override=sponsor_id_override
+        )
+        folder_path = destination["folder_path"]
+        reply_filename = destination["reply_filename"]
+
         letter = self.get_letter(letter_id)
-        prisoner = letter.prisoner
-        if not prisoner or not prisoner.sponsor_name:
-            raise ValueError(f"Letter {letter_id}'s prisoner has no sponsor_name assigned yet.")
-
-        sponsor = self.db.query(Sponsor).filter(Sponsor.name == prisoner.sponsor_name).first()
-        if not sponsor:
-            raise ValueError(
-                f"No Sponsor record found matching sponsor_name={prisoner.sponsor_name!r}. "
-                "Add this sponsor in the Sponsors tab first."
-            )
-        if not sponsor.pseudonym:
-            raise ValueError(
-                f"Sponsor {sponsor.name!r} has no pseudonym set. Set one in the Sponsors tab "
-                "(it must match the sponsor's existing OneDrive folder name) before uploading."
-            )
-
-        exchange_number = letter.letter_exchange_count
-        if exchange_number is None:
-            raise ValueError(
-                f"Letter {letter_id}'s prisoner has no letter_exchange_count yet -- "
-                "the address must be verified at scan-confirm before this letter can be filed."
-            )
-
-        cpid = prisoner.cpid
-        folder_path = f"CAL POP/...PRISONERS/{sponsor.pseudonym}/{cpid}/exchange{exchange_number}"
 
         settings = get_settings()
         storage = get_storage_service(settings, self.db)
@@ -493,7 +630,6 @@ class LetterService:
             ref = storage.upload_file(folder_path, filename, content)
             uploaded_refs.append({"filename": filename, "ref": ref})
 
-        reply_filename = f"{cpid}_{exchange_number}_out.docx"
         reply_ref = storage.upload_file(folder_path, reply_filename, build_blank_reply_docx())
 
         letter.redacted_file_ref = uploaded_refs[0]["ref"] if uploaded_refs else None

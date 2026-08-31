@@ -1,3 +1,14 @@
+# NOTE on OCR/translation: this app's primary OCR (envelope routing, letter
+# transcription, Spanish-language translation) runs on Ollama, a separate
+# service, NOT a pip package -- it is not and cannot be listed below. Install
+# it on the host machine separately (https://ollama.com) and pull the vision
+# model (`ollama pull qwen2.5vl:7b`); see docs/technical_deployment_guide.md
+# ("Prerequisites") and README.md for the full setup and OLLAMA_BASE_URL /
+# OLLAMA_VISION_MODEL config. `httpx` below is what this backend uses to call
+# it over HTTP. `google-cloud-vision` is an optional, off-by-default cloud
+# OCR fallback (OCR_PROVIDER=google_vision) -- letter-content translation
+# refuses to use it at all (see OCRService.translate_image).
+
 fastapi
 uvicorn
 pandas

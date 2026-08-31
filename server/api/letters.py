@@ -19,6 +19,10 @@ from schemas.letter import (
     LetterUpdate,
     RedactedUploadRequest,
     RedactedUploadResult,
+    UploadDestinationPreview,
+    TranslateImageRequest,
+    TranslateImageResult,
+    TranslationDocxRequest,
 )
 from services.letter_service import LetterService, AmbiguousSponsorRoutingError
 from services.matching_service import MatchingService
@@ -215,6 +219,32 @@ def update_letter(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
+@router.get("/{letter_id}/upload-preview", response_model=UploadDestinationPreview)
+def preview_upload_redacted(
+    letter_id: int,
+    exchange_override: Optional[str] = None,
+    sponsor_id_override: Optional[int] = None,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Read-only: resolves where upload-redacted would file this letter,
+    without uploading anything. Meant to back a confirmation step in the UI
+    before the real upload runs -- see LetterService.resolve_upload_destination.
+    `exchange_override` lets the frontend re-check a corrected exchange
+    number (e.g. "5" or "intro"); `sponsor_id_override` lets it re-check
+    against a manually picked Sponsor when the automatic sponsor_name match
+    fails or picked the wrong one.
+    """
+    service = _service(db)
+    try:
+        return service.resolve_upload_destination(
+            letter_id, exchange_override=exchange_override, sponsor_id_override=sponsor_id_override
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.post("/{letter_id}/upload-redacted", response_model=RedactedUploadResult)
 def upload_redacted_letter(
     letter_id: int,
@@ -233,7 +263,9 @@ def upload_redacted_letter(
     try:
         files = [(f.filename, base64.b64decode(f.content_base64)) for f in payload.files]
         return service.upload_redacted_to_sponsor_onedrive(
-            letter_id, files, changed_by=db_user.id if db_user else None
+            letter_id, files, changed_by=db_user.id if db_user else None,
+            exchange_override=payload.exchange_override,
+            sponsor_id_override=payload.sponsor_id_override,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -252,3 +284,58 @@ def get_letter_status_history(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return service.get_status_history(letter_id)
+
+
+@router.post("/translate-page", response_model=TranslateImageResult)
+def translate_page(
+    payload: TranslateImageRequest,
+    _admin: UserContext = Depends(require_admin),
+):
+    """
+    Letter Mgt's Spanish-language workflow (added 31Aug2026): transcribe +
+    draft-translate one already-redacted letter page. Local-only -- see
+    OCRService.translate_image's docstring for why this has no cloud
+    fallback, unlike envelope OCR. Not tied to a specific letter_id since
+    it's stateless image processing; the frontend collects results per
+    page before this feeds into /translation-docx or the final upload.
+
+    This is a FIRST-PASS DRAFT. It is never uploaded to a sponsor directly
+    -- see build_translation_review_docx's docstring for the review step
+    this feeds into.
+    """
+    try:
+        if "," in payload.image_data:
+            _, encoded = payload.image_data.split(",", 1)
+        else:
+            encoded = payload.image_data
+        image_bytes = base64.b64decode(encoded)
+        return ocr_service.translate_image(image_bytes)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/translation-docx")
+def translation_docx(
+    payload: TranslationDocxRequest,
+    _admin: UserContext = Depends(require_admin),
+):
+    """
+    Bundles one or more translated pages into a downloadable .docx, clearly
+    labeled as a draft needing review -- meant to be sent to a bilingual
+    reviewer OUTSIDE the app (email/text, however Rey already communicates
+    with them; no in-app reviewer role exists, a deliberate choice made
+    31Aug2026), corrected, and the corrected file re-uploaded via Letter
+    Mgt's existing "Upload Already-Redacted File" picker.
+    """
+    from fastapi.responses import Response as FastAPIResponse
+    from services.artifact_docx import build_translation_review_docx
+
+    pages = [p.dict() for p in payload.pages]
+    docx_bytes = build_translation_review_docx(pages, personal_use=payload.personal_use)
+    return FastAPIResponse(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": "attachment; filename=translation_draft_for_review.docx"},
+    )
