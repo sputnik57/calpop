@@ -47,45 +47,47 @@ function SponsorDirectory({ refreshKey }) {
 
     return (
         <div className="bg-white rounded-xl border border-calpop-navy/15 shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-                <thead>
-                    <tr className="bg-calpop-bg border-b border-calpop-navy/15 text-left">
-                        <th className="px-4 py-3 font-bold text-calpop-navy uppercase tracking-widest text-xs">Name</th>
-                        <th className="px-4 py-3 font-bold text-calpop-navy uppercase tracking-widest text-xs">Type</th>
-                        <th className="px-4 py-3 font-bold text-calpop-navy uppercase tracking-widest text-xs">Contact</th>
-                        <th className="px-4 py-3 font-bold text-calpop-navy uppercase tracking-widest text-xs">Sponsees</th>
-                        <th className="px-4 py-3 font-bold text-calpop-navy uppercase tracking-widest text-xs">OneDrive</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {sponsors.map(s => (
-                        <tr key={s.id} className="border-b border-calpop-navy/10 last:border-0">
-                            <td className="px-4 py-3">
-                                <div className="font-medium text-calpop-ink">{s.name}</div>
-                                {s.pseudonym && <div className="text-xs text-calpop-navy">aka {s.pseudonym}</div>}
-                            </td>
-                            <td className="px-4 py-3">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${s.sponsor_type === 'course' ? 'bg-calpop-blue/15 text-calpop-blue' : 'bg-calpop-olive/15 text-calpop-olive'}`}>
-                                    {s.sponsor_type === 'course' ? 'Course' : 'Individual'}
-                                </span>
-                            </td>
-                            <td className="px-4 py-3 text-calpop-navy">
-                                {s.email && <div className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />{s.email}</div>}
-                                {s.phone && <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{s.phone}</div>}
-                                {!s.email && !s.phone && <span className="text-calpop-navy/40">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-calpop-ink font-medium">{s.sponsee_count}</td>
-                            <td className="px-4 py-3">
-                                {s.onedrive_folder_link ? (
-                                    <a href={s.onedrive_folder_link} target="_blank" rel="noreferrer" className="text-calpop-blue hover:underline flex items-center gap-1">
-                                        Open <ExternalLink className="w-3.5 h-3.5" />
-                                    </a>
-                                ) : <span className="text-calpop-navy/40">—</span>}
-                            </td>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                    <thead>
+                        <tr className="bg-calpop-bg text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
+                            <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Name</th>
+                            <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Type</th>
+                            <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Contact</th>
+                            <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Sponsees</th>
+                            <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">OneDrive</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {sponsors.map(s => (
+                            <tr key={s.id} className="border-b border-calpop-navy/10 last:border-0 hover:bg-calpop-blue/5 transition-colors">
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                    <span className="text-calpop-ink">{s.name}</span>
+                                    {s.pseudonym && <span className="text-calpop-navy text-xs"> (aka {s.pseudonym})</span>}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${s.sponsor_type === 'course' ? 'bg-calpop-blue/10 text-calpop-blue border-calpop-blue/25' : 'bg-calpop-olive/10 text-calpop-olive border-calpop-olive/25'}`}>
+                                        {s.sponsor_type === 'course' ? 'Course' : 'Individual'}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-2 text-calpop-navy whitespace-nowrap">
+                                    {s.email && <span className="inline-flex items-center gap-1 mr-3"><Mail className="w-3 h-3" />{s.email}</span>}
+                                    {s.phone && <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" />{s.phone}</span>}
+                                    {!s.email && !s.phone && '—'}
+                                </td>
+                                <td className="px-4 py-2 text-calpop-ink whitespace-nowrap">{s.sponsee_count}</td>
+                                <td className="px-4 py-2 whitespace-nowrap">
+                                    {s.onedrive_folder_link ? (
+                                        <a href={s.onedrive_folder_link} target="_blank" rel="noreferrer" className="text-calpop-blue hover:underline inline-flex items-center gap-1">
+                                            Open <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                    ) : '—'}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     )
 }

@@ -74,56 +74,60 @@ export function LettersPage() {
 
             {/* Letters Table */}
             <div className="bg-white rounded-xl border border-calpop-navy/15 overflow-hidden shadow-sm">
-                <table className="w-full text-left">
-                    <thead className="bg-calpop-bg text-calpop-navy text-sm uppercase tracking-wider">
-                        <tr>
-                            <th className="p-4 font-medium">Status</th>
-                            <th className="p-4 font-medium">Title</th>
-                            <th className="p-4 font-medium">Prisoner ID</th>
-                            <th className="p-4 font-medium">Updated</th>
-                            <th className="p-4 font-medium text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-calpop-navy/10">
-                        {letters.length === 0 ? (
-                            <tr>
-                                <td colSpan="5" className="p-8 text-center text-calpop-navy">
-                                    No letters found. Create one to get started.
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                        <thead>
+                            <tr className="bg-calpop-bg text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
+                                <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Status</th>
+                                <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Title</th>
+                                <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Prisoner ID</th>
+                                <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Updated</th>
+                                <th className="text-right font-bold px-4 py-2.5 whitespace-nowrap">Actions</th>
                             </tr>
-                        ) : (
-                            letters.map(letter => (
-                                <tr key={letter.id} className="hover:bg-calpop-bg/60 transition-colors group">
-                                    <td className="p-4">
-                                        <div className={`flex items-center gap-2 ${getStatusColor(letter.status)}`}>
-                                            {getStatusIcon(letter.status)}
-                                            <span className="capitalize font-medium">{letter.status}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 font-medium text-calpop-ink">{letter.title || "Untitled Draft"}</td>
-                                    <td className="p-4 font-mono text-calpop-navy">{letter.prisoner_cpid}</td>
-                                    <td className="p-4 text-calpop-navy text-sm">
-                                        {new Date(letter.updated_at).toLocaleDateString()}
-                                    </td>
-                                    <td className="p-4 text-right space-x-4">
-                                        <Link
-                                            to={`/letters/${letter.id}/scan`}
-                                            className="text-calpop-navy hover:text-calpop-ink font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            Scan &rarr;
-                                        </Link>
-                                        <Link
-                                            to={`/letters/${letter.id}`}
-                                            className="text-calpop-blue hover:brightness-90 font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            Edit &rarr;
-                                        </Link>
+                        </thead>
+                        <tbody>
+                            {letters.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="px-4 py-8 text-center text-calpop-navy">
+                                        No letters found. Create one to get started.
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : (
+                                letters.map(letter => (
+                                    <tr key={letter.id} className="border-b border-calpop-navy/10 last:border-0 hover:bg-calpop-blue/5 transition-colors group">
+                                        <td className="px-4 py-2 whitespace-nowrap">
+                                            <div className={`flex items-center gap-1.5 ${getStatusColor(letter.status)}`}>
+                                                {getStatusIcon(letter.status)}
+                                                <span className="capitalize font-medium">{letter.status}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2 text-calpop-ink whitespace-nowrap">{letter.title || "Untitled Draft"}</td>
+                                        <td className="px-4 py-2 font-mono text-xs text-calpop-blue whitespace-nowrap">{letter.prisoner_cpid}</td>
+                                        <td className="px-4 py-2 text-calpop-navy whitespace-nowrap">
+                                            {new Date(letter.updated_at).toLocaleDateString()}
+                                        </td>
+                                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                                            <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Link
+                                                    to={`/letters/${letter.id}/scan`}
+                                                    className="text-calpop-navy hover:text-calpop-ink font-medium"
+                                                >
+                                                    Scan &rarr;
+                                                </Link>
+                                                <Link
+                                                    to={`/letters/${letter.id}`}
+                                                    className="text-calpop-blue hover:brightness-90 font-medium"
+                                                >
+                                                    Edit &rarr;
+                                                </Link>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     )
