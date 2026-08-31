@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from config import get_settings
 from core.letter_db import LetterDatabase
 from services.excel_manager import ExcelMapManager
-from schemas.prisoner import PrisonerCreate
+from schemas.prisoner import PrisonerCreate, PrisonerUpdate
 from auth.dependencies import require_admin, require_admin_or_sponsor
 from auth.middleware import SessionMiddleware
 from auth.router import router as auth_router
@@ -403,6 +403,10 @@ def export_prisoners_excel(user=Depends(require_admin)):
     """
     import io
     from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
     import pandas as pd
     from fastapi.responses import StreamingResponse
     from db.models import Prisoner
@@ -410,29 +414,37 @@ def export_prisoners_excel(user=Depends(require_admin)):
     db = SessionLocal()
     try:
         prisoners = db.query(Prisoner).order_by(Prisoner.cpid).all()
+        # Column order/names match the real active_map.xlsx exactly (verified
+        # 31Aug2026 against Rey's actual file) -- this export used to use a
+        # different order and "facility" instead of "Prison", which mattered
+        # once Postgres became the authoritative store and this export
+        # became the real "review doc," not just an incidental convenience.
+        # "Count" (the real sheet's legacy first column) is deliberately
+        # omitted -- it's a superseded duplicate of "Intake #", not a
+        # distinct stored field (see _extract_prisoner_row's fallback).
         rows = [
             {
-                "CPID": p.cpid,
+                "Intake #": p.intake_number,
+                "Stage": p.stage,
                 "fName": p.first_name,
                 "lName": p.last_name,
+                "Unsafe?": "Y" if (p.safety_classification or "").strip().lower() == "unsafe" else "",
                 "CDCRno": p.cdcr_number,
                 "housing": p.housing,
-                "facility": p.facility,
                 "address": p.address,
                 "city": p.city,
                 "state": p.state,
                 "zip": p.zip,
-                "Unsafe?": "Y" if (p.safety_classification or "").strip().lower() == "unsafe" else "",
-                "Sponsor": p.sponsor_name,
-                "Intake #": p.intake_number,
-                "Stage": p.stage,
+                "Prison": p.facility,
                 "CDCR db verif": p.cdcr_db_verified,
                 "contract": p.contract_status,
                 "Date of contract": p.date_of_contract,
                 "Needs Green book?": p.needs_green_book,
                 "language": p.language,
                 "Review notes": p.review_notes,
+                "Sponsor": p.sponsor_name,
                 "Date Sponsor assigned": p.date_sponsor_assigned,
+                "CPID": p.cpid,
                 "letter exchange (received only)": p.letter_exchange_count,
                 "Step (received only)": p.step_received_count,
                 "BPH DATE": p.bph_date,
@@ -447,7 +459,10 @@ def export_prisoners_excel(user=Depends(require_admin)):
     df.to_excel(buffer, index=False)
     buffer.seek(0)
 
-    filename = f"prisoner_roster_export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    # Container clock runs UTC; timestamp the filename in the program's real
+    # timezone instead (same pattern as LetterService's scan-title timestamp).
+    pacific_now = datetime.now(ZoneInfo("America/Los_Angeles"))
+    filename = f"prisoner_roster_export_{pacific_now.strftime('%Y%m%d_%H%M')}.xlsx"
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -526,6 +541,83 @@ def remove_from_print_queue(cpid: str, user=Depends(require_admin)):
         prisoner.queued_for_printing_at = None
         db.commit()
         return {"cpid": cpid, "queued_for_printing_at": None}
+    finally:
+        db.close()
+
+
+_PRISONER_INT_FIELDS = {"stage", "letter_exchange_count", "step_received_count"}
+
+
+@app.patch("/api/prisoners/{cpid}")
+def update_prisoner(cpid: str, payload: PrisonerUpdate, user=Depends(require_admin)):
+    """
+    DB Mgt's Update Person form (client/src/pages/PrisonersPage.jsx) --
+    previously unimplemented on purpose (the frontend called this exact
+    path/method and failed with an explicit "not wired up yet" message
+    rather than a silent no-op). Built 30Aug2026 after a live case surfaced
+    a real need: sponsor_name and letter_exchange_count directly control
+    which OneDrive folder a redacted letter gets uploaded to (see
+    LetterService.resolve_upload_destination), and until now there was no
+    working UI path to fix either one if they were ever wrong -- only a
+    direct database edit.
+    """
+    from db.models import Prisoner
+
+    db = SessionLocal()
+    try:
+        prisoner = db.query(Prisoner).filter(Prisoner.cpid == cpid).first()
+        if not prisoner:
+            raise HTTPException(status_code=404, detail="Prisoner not found")
+
+        updates = payload.dict(exclude_unset=True)
+        for field, value in updates.items():
+            if field in _PRISONER_INT_FIELDS:
+                if value is None or value == "":
+                    setattr(prisoner, field, None)
+                else:
+                    try:
+                        setattr(prisoner, field, int(value))
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"{field!r} must be a whole number, got {value!r}",
+                        )
+            else:
+                setattr(prisoner, field, value if value != "" else None)
+
+        db.commit()
+        db.refresh(prisoner)
+
+        return {
+            "cpid": prisoner.cpid,
+            "first_name": prisoner.first_name,
+            "last_name": prisoner.last_name,
+            "cdcr_number": prisoner.cdcr_number,
+            "facility": prisoner.facility,
+            "housing": prisoner.housing,
+            "address": prisoner.address,
+            "city": prisoner.city,
+            "state": prisoner.state,
+            "zip": prisoner.zip,
+            "safety_classification": prisoner.safety_classification,
+            "sponsor_name": prisoner.sponsor_name,
+            "stage": prisoner.stage,
+            "cdcr_db_verified": prisoner.cdcr_db_verified,
+            "contract_status": prisoner.contract_status,
+            "date_of_contract": prisoner.date_of_contract,
+            "needs_green_book": prisoner.needs_green_book,
+            "language": prisoner.language,
+            "review_notes": prisoner.review_notes,
+            "date_sponsor_assigned": prisoner.date_sponsor_assigned,
+            "letter_exchange_count": prisoner.letter_exchange_count,
+            "step_received_count": prisoner.step_received_count,
+            "bph_date": prisoner.bph_date,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
