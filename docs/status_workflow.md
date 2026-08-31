@@ -71,9 +71,93 @@ the status codes below.
 ## Terminal / exception codes
 
 - **90** — Literature request only, doesn't ask for a sponsor
-- **91** — Silence for 60 days
+- **91** — No response, silence for at least 60 days
 - **92** — Sponsee dropped out of the program themselves
 - **93** — Not in CDCR database / released / died? No contact
+- **94** — Tradition 3 prevents service — does not identify as an addict *(added 31Aug2026)*
+- **95** — Other, (e.g., admin) *(added 31Aug2026)*
+
+**Added 31Aug2026, surfaced by a real Excel upload, worked through live with
+Rey:** 17 real contacts (rows 93–119 of that file) had a blank CPID cell —
+4 already correctly coded Stage 90, 13 coded Stage 91 ("Sent pledge letter;
+no response?"). The app just didn't know a terminal-stage blank CPID was
+expected rather than an error (see the `_extract_prisoner_row` NaN-handling
+fix the same day, `implementation_plan.md`). 94 and 95 above were added
+partly to give this a home, but the final answer, after going back and
+forth on the 13 Stage-91 rows specifically, turned out simpler than
+expected: **CPID presence isn't the meaningful signal at all — Stage is.**
+Rey's words: "CPIDs are not sacred, but the category has more meaning."
+Stage 91 does NOT require a prior CPID (a contact can go silent before ever
+being formally taken on, not only after) — the 13 stayed Stage 91, blank
+CPID and all, no reclassification needed. **The actual rule going forward:
+a blank-CPID row with any recognized Stage value (1–95) is understood and
+categorized, not an error; only a blank CPID *and* a blank/unrecognized
+Stage is genuinely ambiguous and worth flagging.** Kept in sync with
+`STAGE_LEGEND` in `client/src/pages/PrisonersPage.jsx` (the Stage-column
+tooltip legend, also added 31Aug2026) — update both together if this list
+ever changes again.
+
+## Per-letter tracking checklist (Rey's physical rubber stamp, added 30Aug2026)
+
+A finer grain than the main sequence above — this tracks a single letter's
+own journey once it's already an ongoing exchange (roughly the inside detail
+of steps 8 through 11: forwarded to sponsor, through mailed response), not
+the sponsee's overall lifecycle. Rey stamps each physical letter with this
+checklist today; not yet represented anywhere in the app's schema.
+
+1. Letter written *(by the sponsee, the incoming letter)*
+2. Letter postmarked
+3. PO pickup
+4. No. of correspondence *(the exchange count — `Prisoner.letter_exchange_count` in the current schema)*
+5. Scanned envelope
+6. Address change y/n
+7. Upload to sponsor portal *(the OneDrive upload built 22/30Aug2026 — `LetterService.upload_redacted_to_sponsor_onedrive`)*
+8. Informed sponsor *(today: a manual text message — no in-app notification exists for this yet)*
+9. Sponsor writing letter
+10. Date(s) reminded sponsor
+11. Sponsor finishes letter
+12. Admin review/edit final response
+13. Printed response
+14. Mailed response
+
+**Not yet reconciled against `LetterStatusHistory`** (built 22Aug2026, one
+append-only row per status change) or `Letter.status` itself — both are
+coarser than this 14-point checklist. Whether this becomes the actual
+`Letter.status` values, a separate finer-grained tracking table, or stays a
+physical-only process is an open design question, not decided here.
+
+**Added 30Aug2026 — display convention to carry over when this is built:**
+any date shown for these checkpoints should use the same `30-Aug-2026`
+format established the same day in DB Mgt (`PrisonersPage.jsx`'s
+`formatDateDisplay` helper and the Update Person form's raw-value
+stripping) — not a raw timestamp, and not the pandas-style
+`2022-03-25 00:00:00` string Excel dates arrive in.
+
+**Added 30Aug2026 — a new signal Rey wants, sitting between items 8 and 9:**
+a datetime stamp for when the sponsor actually *opens* their OneDrive
+portal, distinct from "Sponsor finishes letter" (item 11, currently signaled
+by the sponsor texting Rey manually when done). Investigation into how this
+would even be possible was started and explicitly paused (Rey: "don't do it
+now") — worth recording what's already known so it doesn't get re-derived
+from scratch later:
+- The account is a **personal** Microsoft account, not OneDrive for
+  Business/M365 — Graph API's item-view/activity analytics
+  (`/items/{id}/analytics/...`) has historically been far more limited or
+  simply unavailable for personal accounts versus business ones. Whether
+  it's available here at all is **unconfirmed** — a live test against a
+  real folder was attempted and interrupted before getting a result, not
+  because it failed.
+- **A more universally reliable alternative, not yet evaluated in detail:**
+  a CalPOP-generated short redirect link (e.g. sent via the not-yet-built
+  sponsor-notification text/email, see the Telnyx/Dreamhost backlog item
+  above) that logs a timestamp server-side before forwarding the sponsor
+  into the real OneDrive folder. Doesn't depend on any Microsoft
+  analytics capability, but only captures opens that go through a link
+  CalPOP itself issued — a sponsor who already has the folder bookmarked
+  or synced locally could open it without ever hitting that link.
+- Not started, not designed, no code written. Natural pairing with the
+  sponsor-notification backlog item — if that gets built first, this
+  timestamp is a byproduct of the tracking link it would need.
 
 ## Open reconciliation work (not done yet)
 

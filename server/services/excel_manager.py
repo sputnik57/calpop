@@ -8,6 +8,14 @@ from db.models import Prisoner
 
 logger = logging.getLogger(__name__)
 
+# Mirrors docs/status_workflow.md's "Main sequence" (1-12) and "Terminal /
+# exception codes" (90-95) -- kept in sync with STAGE_LEGEND in
+# client/src/pages/PrisonersPage.jsx. Used by diff_with_postgres_prisoners
+# to decide whether a blank-CPID row is expected (a recognized Stage) or
+# genuinely ambiguous (no Stage, or an unrecognized one).
+RECOGNIZED_STAGES = set(range(1, 13)) | {90, 91, 92, 93, 94, 95}
+
+
 class ExcelMapManager:
     """
     Manages the Excel file containing prisoner data for secure ID <-> Name resolution.
@@ -348,7 +356,7 @@ class ExcelMapManager:
             logger.info(f"Synced {updated_count} prisoner codes with letter database")
             return updated_count
         except Exception as e:
-            logger.error(f"Error syncing with letter DB: {str(e)}")
+            logger.error(f"Error syncing with letter DB: {type(e).__name__}")
             return 0
             
     @staticmethod
@@ -358,8 +366,27 @@ class ExcelMapManager:
         expects. Returns None if the row has no CPID. Shared by
         sync_with_postgres_prisoners and diff_with_postgres_prisoners so
         both use identical field mapping/safety-classification logic.
+
+        Found 31Aug2026, real corruption: a blank Excel cell is pandas NaN
+        (a float), not '' -- and NaN is truthy in Python, so
+        `row.get('CPID') or row.get('code') or ''` never fell through past a
+        blank CPID cell to check 'code' or ''. str(nan).strip() == 'nan', a
+        non-empty string, so the "no CPID" guard below never fired either.
+        Every row with a blank CPID silently became a real record with
+        cpid='nan' -- and every SUCH row collided on that same fake key,
+        each successive one overwriting the last on apply. One real
+        Prisoner row with cpid='nan' was already found live in Postgres
+        from a prior apply, holding whichever of several real people's data
+        happened to sync last. Fixed with explicit pd.isna() checks (same
+        pattern the `clean()` helper elsewhere in this file already uses
+        correctly) instead of relying on Python truthiness.
         """
-        cpid = str(row.get('CPID') or row.get('code') or '').strip()
+        cpid_raw = row.get('CPID')
+        if pd.isna(cpid_raw):
+            cpid_raw = row.get('code')
+        if pd.isna(cpid_raw):
+            return None
+        cpid = str(cpid_raw).strip()
         if not cpid:
             return None
 
@@ -430,11 +457,25 @@ class ExcelMapManager:
         rather than blindly upserting every row in the file.
         """
         if not self.is_loaded():
-            return {"new": [], "changed": [], "unchanged_count": 0, "missing_from_file": []}
+            return {
+                "new": [], "changed": [], "unchanged_count": 0, "missing_from_file": [],
+                "skipped_missing_cpid": [], "no_cpid_categorized": [],
+            }
 
         file_cpids: set = set()
         new_records = []
         changed_records = []
+        # Split 31Aug2026, worked through live with Rey: CPID presence isn't
+        # the meaningful signal for whether a blank-CPID row needs attention
+        # -- Stage is ("CPIDs are not sacred, but the category has more
+        # meaning"). A row with a recognized Stage (the main sequence 1-12,
+        # or terminal/exception codes 90-95, see docs/status_workflow.md) is
+        # understood and expected to have no CPID -- e.g. Stage 91 covers
+        # someone who went silent before ever being formally taken on, not
+        # only after. Only a blank CPID *and* a blank/unrecognized Stage is
+        # genuinely ambiguous and worth surfacing for a human to look at.
+        skipped_missing_cpid = []
+        no_cpid_categorized = []
         unchanged_count = 0
         compare_fields = [
             'first_name', 'last_name', 'facility', 'housing',
@@ -445,9 +486,36 @@ class ExcelMapManager:
             'bph_date',
         ]
 
-        for _, row in self.df.iterrows():
+        for excel_row_num, row in self.df.iterrows():
             incoming = self._extract_prisoner_row(row)
             if not incoming:
+                # No CPID at all (see the 31Aug2026 fix above) -- surfaced
+                # explicitly rather than silently dropped, so a real person
+                # missing a CPID doesn't just vanish from the diff with no
+                # explanation. Row number is 0-indexed relative to the
+                # dataframe, +2 to match Excel's own row numbering (1-indexed,
+                # plus the header row).
+                def raw(col):
+                    val = row.get(col)
+                    return None if pd.isna(val) else str(val).strip()
+
+                stage_val = row.get('Stage')
+                try:
+                    stage_int = None if pd.isna(stage_val) else int(stage_val)
+                except (TypeError, ValueError):
+                    stage_int = None
+
+                entry = {
+                    "excel_row": excel_row_num + 2,
+                    "first_name": raw('fName'),
+                    "last_name": raw('lName'),
+                    "cdcr_number": raw('CDCRno'),
+                    "stage": stage_int,
+                }
+                if stage_int in RECOGNIZED_STAGES:
+                    no_cpid_categorized.append(entry)
+                else:
+                    skipped_missing_cpid.append(entry)
                 continue
             cpid = incoming['cpid']
             file_cpids.add(cpid)
@@ -477,6 +545,8 @@ class ExcelMapManager:
             "changed": changed_records,
             "unchanged_count": unchanged_count,
             "missing_from_file": missing_from_file,
+            "skipped_missing_cpid": skipped_missing_cpid,
+            "no_cpid_categorized": no_cpid_categorized,
         }
 
     def sync_with_postgres_prisoners(self, db: Session) -> int:
@@ -492,12 +562,14 @@ class ExcelMapManager:
             from sqlalchemy.dialects.postgresql import insert
             
             records_count = 0
+            failed_cpid = None
             # Iterate through the dataframe and upsert each prisoner
             for _, row in self.df.iterrows():
                 prisoner_data = self._extract_prisoner_row(row)
                 if not prisoner_data:
                     continue
 
+                failed_cpid = prisoner_data.get('cpid')
                 stmt = insert(Prisoner).values(**prisoner_data)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=['cpid'],
@@ -505,13 +577,20 @@ class ExcelMapManager:
                 )
                 db.execute(stmt)
                 records_count += 1
-                
+
             db.commit()
             logger.info(f"Successfully synced {records_count} prisoners to Postgres")
             return records_count
         except Exception as e:
             db.rollback()
-            logger.error(f"Failed to sync with Postgres: {str(e)}")
+            # Do not log str(e) here: SQLAlchemy errors on this statement embed
+            # the full bound parameters (name/address/facility/etc for the row
+            # that failed), which would put PII straight into plaintext stdout
+            # logs. Log only identifiers and the exception type instead.
+            logger.error(
+                f"Failed to sync with Postgres after {records_count} successful "
+                f"upserts (failed on cpid={failed_cpid!r}): {type(e).__name__}"
+            )
             return 0
     
     def get_summary(self) -> Dict[str, Any]:
