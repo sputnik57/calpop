@@ -111,7 +111,11 @@ class Settings(BaseSettings):
         description="Ollama model tag used for local handwriting/document OCR.",
     )
     ollama_timeout_seconds: float = Field(
-        120.0, description="Timeout in seconds for local Ollama OCR requests.",
+        300.0,
+        description="Timeout in seconds for local Ollama OCR requests. Translation (transcribe "
+        "+ full English translation in one call) is noticeably heavier than plain OCR and can "
+        "take longer than the original 120s default on CPU-bound hardware -- raised 31Aug2026 "
+        "after a real translate request got cut off mid-generation.",
     )
     
     # Return-address blocks for outgoing envelopes. Two variants, never one:
@@ -145,6 +149,23 @@ class Settings(BaseSettings):
     library_history_root: Optional[Path] = Field(
         None, description="Path to archival/past letter documents."
     )
+    library_local_root: Path = Field(
+        Path("/tmp/calpop_library_uploads/local"),
+        description="Container-only ephemeral cache for curriculum/past-letter files uploaded via the browser's native file picker (Reference Hub's Local Files tab). Deliberately NOT bind-mounted to the host -- cleared on every backend startup (see main.py) -- because the Windows/WSL folder stays the durable source of truth, this is just a working copy for the current session.",
+    )
+    host_project_dir: Optional[str] = Field(
+        None, description="Absolute path of this project on the WSL host (where docker-compose.yml lives). Only used to build the Windows path shown by Reference Hub's 'Copy Windows path' -- the container can't know it otherwise."
+    )
+    wsl_distro_name: Optional[str] = Field(
+        None, description="WSL distro name (e.g. Ubuntu), for the \\\\wsl.localhost\\<distro>\\... path Windows apps use to reach files inside WSL."
+    )
+    bilingual_output_root: Path = Field(
+        Path("/app/data/course_students"),
+        description="The Course Students folder: Rey's single, durable exchange folder with Windows until everything lives in WSL (decided 20Sep2026). Reference Hub's 'Add Spanish' writes *_bilingual.docx here, and its Course Students tab uploads/browses/downloads here. Under ./data so it's the same durable host bind mount as submissions/. NOTE: curriculum translations are meant to eventually go beside the curriculum instead -- repoint this (BILINGUAL_OUTPUT_ROOT) when that happens.",
+    )
+    library_translations_root: Optional[Path] = Field(
+        None, description="Path where translated letter DOCX files saved from the Translate tool are stored, browsable in Reference Hub."
+    )
 
     tls_cert_path: Optional[Path] = Field(
         None, description="Path to TLS certificate for reverse proxy termination (PEM)."
@@ -170,6 +191,7 @@ class Settings(BaseSettings):
 
     library_curriculum_path: Optional[str] = Field(None)
     library_history_path: Optional[str] = Field(None)
+    library_translations_path: Optional[str] = Field(None)
 
     class Config:
         env_file = ".env"

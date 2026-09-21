@@ -37,6 +37,7 @@ services:
       - ./secrets:/secrets
       - "${LIBRARY_CURRICULUM_PATH:-./data/ref/curriculum}:/app/library/curriculum"
       - "${LIBRARY_HISTORY_PATH:-./data/ref/history}:/app/library/history"
+      - "${LIBRARY_TRANSLATIONS_PATH:-./data/ref/translations}:/app/library/translations"
     depends_on:
       - db
     labels:

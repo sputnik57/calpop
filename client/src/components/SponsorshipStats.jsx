@@ -77,7 +77,7 @@ export function SponsorshipStats() {
                     {data.sponsors_breakdown.map((sponsor, idx) => (
                         <div key={idx} className="flex justify-between items-center text-sm">
                             <span className="text-calpop-ink">{sponsor.name}</span>
-                            <span className="px-2 py-1 bg-calpop-bg rounded text-calpop-navy text-xs">
+                            <span className="px-2 py-1 bg-calpop-panel rounded text-calpop-navy text-xs">
                                 {sponsor.count} sponsees
                             </span>
                         </div>

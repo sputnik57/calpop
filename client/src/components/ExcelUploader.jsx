@@ -22,7 +22,7 @@ const FIELD_LABELS = {
     review_notes: 'Review Notes',
     date_sponsor_assigned: 'Date Sponsor Assigned',
     letter_exchange_count: 'Letter Exchange Count',
-    step_received_count: 'Step Received Count',
+    step_received_count: 'Current Step',
     bph_date: 'BPH Date',
 }
 
@@ -122,7 +122,7 @@ function ExcelUploader({ onUploadSuccess }) {
                      disabled:opacity-50"
                 />
                 <Info
-                    className="w-4 h-4 text-calpop-navy/50 hover:text-calpop-navy cursor-help shrink-0"
+                    className="w-4 h-4 text-calpop-navy/70 hover:text-calpop-navy cursor-help shrink-0"
                     title="The database is the source of truth -- this only stages changes for review. Nothing is applied until you confirm below."
                 />
             </div>
@@ -143,7 +143,7 @@ function ExcelUploader({ onUploadSuccess }) {
                 )}
 
                 {diff && (
-                    <div className="bg-calpop-bg border border-calpop-navy/15 rounded-lg p-3 space-y-3">
+                    <div className="bg-calpop-panel border border-calpop-navy/15 rounded-lg p-3 space-y-3">
                         <div className="flex items-center gap-4 text-xs font-mono uppercase flex-wrap">
                             <span className="text-calpop-olive">{diff.new.length} new</span>
                             <span className="text-calpop-accent">{diff.changed.length} changed</span>
@@ -243,7 +243,7 @@ function ExcelUploader({ onUploadSuccess }) {
                             <button
                                 onClick={() => setPreview(null)}
                                 disabled={applying}
-                                className="bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-navy px-3 py-1.5 rounded-lg text-xs font-bold border border-calpop-navy/15"
+                                className="bg-calpop-panel hover:bg-calpop-navy/10 text-calpop-navy px-3 py-1.5 rounded-lg text-xs font-bold border border-calpop-navy/15"
                             >
                                 Cancel
                             </button>

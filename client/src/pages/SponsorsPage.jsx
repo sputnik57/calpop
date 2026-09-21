@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Users, Loader2, Mail, Phone, ExternalLink } from 'lucide-react'
 import { SubTabs } from '../components/SubTabs'
 
-const inputClass = "w-full bg-calpop-bg border border-calpop-navy/25 rounded-lg px-4 py-2.5 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all"
+const inputClass = "w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-4 py-2.5 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all"
 const labelClass = "text-xs font-bold text-calpop-navy uppercase tracking-widest block mb-2"
 
 const EMPTY_FORM = {
@@ -50,7 +50,7 @@ function SponsorDirectory({ refreshKey }) {
             <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                     <thead>
-                        <tr className="bg-calpop-bg text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
+                        <tr className="bg-calpop-panel text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
                             <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Name</th>
                             <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Type</th>
                             <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Contact</th>

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Camera, Loader2, X, Eye, CheckCircle2, Inbox, Users } from 'lucide-react'
 import { RedactionCaptureStage } from '../components/RedactionCaptureStage'
+import { usePrisonerDirectory } from '../hooks/usePrisonerDirectory'
 
 export function IntakeArea() {
     const navigate = useNavigate()
@@ -32,17 +33,13 @@ export function IntakeArea() {
     // returned nothing at all, e.g. no candidates matched or OCR failed).
     // Without this the panel only ever worked when picked from the
     // candidate list, which turned out to be far too narrow a condition.
-    const [rosterByCpid, setRosterByCpid] = useState({})
-    useEffect(() => {
-        fetch('/api/prisoners', { credentials: 'include' })
-            .then(res => res.ok ? res.json() : [])
-            .then(data => {
-                const byCpid = {}
-                for (const p of data || []) byCpid[p.cpid] = p
-                setRosterByCpid(byCpid)
-            })
-            .catch(() => {})
-    }, [])
+    const { prisoners: roster, ensureLoaded: ensureRosterLoaded } = usePrisonerDirectory()
+    useEffect(() => { ensureRosterLoaded() }, [ensureRosterLoaded])
+    const rosterByCpid = useMemo(() => {
+        const byCpid = {}
+        for (const p of roster) byCpid[p.cpid] = p
+        return byCpid
+    }, [roster])
 
     const confirmedFromCandidates = analysis?.candidates?.find(c => c.cpid && c.cpid === confirmedCpid) || null
     const confirmedFromRoster = confirmedCpid && rosterByCpid[confirmedCpid]
@@ -236,7 +233,7 @@ export function IntakeArea() {
                             </h3>
                             <p className="text-white/60 text-xs font-mono uppercase tracking-widest mt-1">Status: {analysis ? 'Scan Complete' : 'Calculating Vectors...'}</p>
                         </div>
-                        <button onClick={() => setShowPreview(false)} className="bg-white hover:bg-calpop-bg text-calpop-ink p-2 rounded-full border border-calpop-navy/15">
+                        <button onClick={() => setShowPreview(false)} className="bg-white hover:bg-calpop-panel text-calpop-ink p-2 rounded-full border border-calpop-navy/15">
                             <X className="w-6 h-6" />
                         </button>
                     </div>
@@ -269,12 +266,12 @@ export function IntakeArea() {
                                     )}
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto font-mono text-sm text-calpop-ink bg-calpop-bg p-4 rounded-lg border border-calpop-navy/15 whitespace-pre-wrap leading-relaxed">
+                                <div className="flex-1 overflow-y-auto font-mono text-sm text-calpop-ink bg-calpop-panel p-4 rounded-lg border border-calpop-navy/15 whitespace-pre-wrap leading-relaxed">
                                     {analysis?.text || "Analyzing text structure..."}
                                 </div>
 
                                 <div className="mt-4 pt-4 border-t border-calpop-navy/15 space-y-4">
-                                    <div className="bg-calpop-bg rounded-lg p-4 border border-calpop-navy/15">
+                                    <div className="bg-calpop-panel rounded-lg p-4 border border-calpop-navy/15">
                                         <div className="flex items-center gap-3 mb-3">
                                             <Users className="w-5 h-5 text-calpop-olive" />
                                             <h5 className="text-sm font-bold text-calpop-ink uppercase tracking-tight">Candidate Matches</h5>
@@ -508,7 +505,7 @@ export function IntakeArea() {
                     <div className="mt-6 flex gap-4">
                         <button
                             onClick={() => setShowPreview(false)}
-                            className="px-8 py-3 bg-white hover:bg-calpop-bg text-calpop-navy rounded-xl font-bold transition-all border border-calpop-navy/15"
+                            className="px-8 py-3 bg-white hover:bg-calpop-panel text-calpop-navy rounded-xl font-bold transition-all border border-calpop-navy/15"
                         >
                             RETAKE
                         </button>

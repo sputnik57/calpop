@@ -251,7 +251,7 @@ export function RedactionCaptureStage({ onCapture, captureLabel = 'Capture & Add
                     <select
                         value={selectedDeviceId}
                         onChange={(e) => setSelectedDeviceId(e.target.value)}
-                        className="w-full bg-calpop-bg border border-calpop-navy/25 text-calpop-ink text-sm p-2 rounded outline-none"
+                        className="w-full bg-calpop-panel border border-calpop-navy/25 text-calpop-ink text-sm p-2 rounded outline-none"
                     >
                         {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>)}
                     </select>
@@ -268,7 +268,7 @@ export function RedactionCaptureStage({ onCapture, captureLabel = 'Capture & Add
                         />
                         <button
                             onClick={() => fileInputRef.current.click()}
-                            className="w-full py-3 bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-ink rounded-lg font-bold flex items-center justify-center gap-2 border border-calpop-navy/15"
+                            className="w-full py-3 bg-calpop-panel hover:bg-calpop-navy/10 text-calpop-ink rounded-lg font-bold flex items-center justify-center gap-2 border border-calpop-navy/15"
                         >
                             <Upload className="w-4 h-4" /> Upload Image
                         </button>
@@ -284,7 +284,7 @@ export function RedactionCaptureStage({ onCapture, captureLabel = 'Capture & Add
                         className="w-full flex items-center justify-between text-xs font-bold text-calpop-navy uppercase"
                     >
                         <span className="flex items-center gap-2"><Sliders className="w-4 h-4" /> Advanced</span>
-                        <span className="text-calpop-navy/50">{showTuning ? 'Hide' : 'Show'}</span>
+                        <span className="text-calpop-navy/70">{showTuning ? 'Hide' : 'Show'}</span>
                     </button>
                     {showTuning && (
                         <div className="space-y-3 mt-4">
@@ -314,7 +314,7 @@ export function RedactionCaptureStage({ onCapture, captureLabel = 'Capture & Add
             <div
                 ref={stageRef}
                 className={`lg:col-span-3 relative rounded-3xl border overflow-hidden aspect-video select-none ${
-                    hasSource ? 'bg-black border-calpop-navy/15 shadow-2xl' : 'bg-calpop-bg border-2 border-dashed border-calpop-navy/25'
+                    hasSource ? 'bg-black border-calpop-navy/15 shadow-2xl' : 'bg-calpop-panel border-2 border-dashed border-calpop-navy/25'
                 }`}
             >
                 {!hasSource && (
@@ -344,44 +344,29 @@ export function RedactionCaptureStage({ onCapture, captureLabel = 'Capture & Add
                     without this outline the two are visually indistinguishable
                     and it's easy to drag the crop box past the real edge
                     without noticing (see clampCrop's comment above). */}
+                {/* Removed 31Aug2026: a dashed "page guide" overlay used to
+                    sit here too, sized for a portrait 8.5x11 letter. Dropped
+                    it -- it doesn't apply to non-portrait documents (a wide
+                    table, a landscape photo, etc.) and, worse, Rey read its
+                    dashed line as an actual crop constraint, which it never
+                    was. Only the real functional boundary (below) remains. */}
                 {hasSource && (() => {
                     const b = getRenderedBounds()
                     if (!b) return null
-                    // Letter-page (8.5x11 portrait) framing guide, centered
-                    // and sized to fit within the real image bounds -- just
-                    // an alignment aid for positioning the physical page
-                    // under the camera before capture, not a constraint on
-                    // the crop box itself (which stays freely adjustable).
-                    const pageAspect = 8.5 / 11
-                    let pw, ph
-                    if (b.renderedW / b.renderedH > pageAspect) {
-                        ph = b.renderedH
-                        pw = ph * pageAspect
-                    } else {
-                        pw = b.renderedW
-                        ph = pw / pageAspect
-                    }
-                    const px = b.offsetX + (b.renderedW - pw) / 2
-                    const py = b.offsetY + (b.renderedH - ph) / 2
                     return (
-                        <>
-                            <div
-                                className="absolute pointer-events-none border border-white/25"
-                                style={{ left: b.offsetX, top: b.offsetY, width: b.renderedW, height: b.renderedH, zIndex: 5 }}
-                            >
-                                <span className="absolute -bottom-5 left-0 text-[10px] font-bold text-white/40 uppercase tracking-wide">
-                                    Image bounds — nothing beyond this edge is captured
-                                </span>
-                            </div>
-                            <div
-                                className="absolute pointer-events-none border-2 border-dashed border-cyan-300/50"
-                                style={{ left: px, top: py, width: pw, height: ph, zIndex: 5 }}
-                            >
-                                <span className="absolute -top-5 left-0 text-[10px] font-bold text-cyan-200/80 uppercase tracking-wide">
-                                    Page guide (8.5×11)
-                                </span>
-                            </div>
-                        </>
+                        <div
+                            className="absolute pointer-events-none border-2 border-dashed border-white"
+                            style={{ left: b.offsetX, top: b.offsetY, width: b.renderedW, height: b.renderedH, zIndex: 5 }}
+                        >
+                            {/* Inset, not outside the box -- when there's no
+                                letterboxing (bounds flush with the frame
+                                edge) an outside label gets clipped by the
+                                container's overflow-hidden and silently
+                                disappears. */}
+                            <span className="absolute bottom-1 left-1 text-[10px] font-bold text-white bg-slate-900/80 px-1 rounded uppercase tracking-wide whitespace-nowrap">
+                                Image bounds — nothing beyond this edge is captured
+                            </span>
+                        </div>
                     )
                 })()}
 

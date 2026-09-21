@@ -88,7 +88,7 @@ const ALL_COLUMNS = [
     { key: 'sponsor_name', label: 'Sponsor', render: p => p.sponsor_name || '—' },
     { key: 'date_sponsor_assigned', label: 'Date Sponsor Assigned', render: p => formatDateDisplay(p.date_sponsor_assigned) || '—' },
     { key: 'letter_exchange_count', label: 'Letter Exchange Count', render: p => p.letter_exchange_count ?? '—' },
-    { key: 'step_received_count', label: 'Step Received Count', render: p => p.step_received_count ?? '—' },
+    { key: 'step_received_count', label: 'Current Step', render: p => p.step_received_count ?? '—' },
     { key: 'bph_date', label: 'BPH Date', render: p => formatDateDisplay(p.bph_date) || '—' },
     // Not in the Excel roster at all -- app-only/computed fields, kept at the end.
     { key: 'letters_received_count', label: 'Letters (in app)', render: p => p.letters_received_count ?? 0 },
@@ -130,7 +130,7 @@ const EDITABLE_FIELDS = [
     ['review_notes', 'Review Notes'],
     ['date_sponsor_assigned', 'Date Sponsor Assigned'],
     ['letter_exchange_count', 'Letter Exchange Count'],
-    ['step_received_count', 'Step Received Count'],
+    ['step_received_count', 'Current Step'],
     ['bph_date', 'BPH Date'],
 ]
 
@@ -194,7 +194,7 @@ function UpdatePersonPanel({ prisoner, onDone }) {
         }
     }
 
-    const inputClass = "w-full bg-calpop-bg border border-calpop-navy/25 rounded-lg px-4 py-2.5 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all"
+    const inputClass = "w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-4 py-2.5 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all"
     const labelClass = "text-xs font-bold text-calpop-navy uppercase tracking-widest block mb-2"
 
     return (
@@ -356,7 +356,7 @@ export function PrisonersPage() {
     }) : filtered
 
     const SortIcon = ({ colKey }) => {
-        if (sortKey !== colKey) return <ChevronsUpDown className="w-3 h-3 text-calpop-navy/30" />
+        if (sortKey !== colKey) return <ChevronsUpDown className="w-3 h-3 text-calpop-navy/70" />
         return sortDir === 'asc'
             ? <ChevronUp className="w-3 h-3 text-current" />
             : <ChevronDown className="w-3 h-3 text-current" />
@@ -392,14 +392,14 @@ export function PrisonersPage() {
                         className={`px-4 py-2 rounded-lg font-bold border flex items-center gap-2 text-sm transition-colors ${
                             showUpload
                                 ? 'bg-calpop-blue text-white border-calpop-blue'
-                                : 'bg-white hover:bg-calpop-bg text-calpop-navy border-calpop-navy/15'
+                                : 'bg-white hover:bg-calpop-panel text-calpop-navy border-calpop-navy/15'
                         }`}
                     >
                         <Upload className="w-4 h-4" /> Upload Excel
                     </button>
                     <a
                         href="/api/prisoners/export"
-                        className="bg-white hover:bg-calpop-bg text-calpop-navy px-4 py-2 rounded-lg font-bold border border-calpop-navy/15 flex items-center gap-2 text-sm"
+                        className="bg-white hover:bg-calpop-panel text-calpop-navy px-4 py-2 rounded-lg font-bold border border-calpop-navy/15 flex items-center gap-2 text-sm"
                     >
                         <ExternalLink className="w-4 h-4" /> Download Excel
                     </a>
@@ -421,7 +421,7 @@ export function PrisonersPage() {
                         placeholder="Search CPID or name..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-calpop-bg border border-calpop-navy/25 rounded-lg pl-9 pr-3 py-2 text-sm text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all font-mono"
+                        className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg pl-9 pr-3 py-2 text-sm text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all font-mono"
                     />
                 </div>
 
@@ -431,7 +431,7 @@ export function PrisonersPage() {
                         className={`px-3 py-2 rounded-lg font-bold border flex items-center gap-2 text-sm transition-colors ${
                             showColumnPicker
                                 ? 'bg-calpop-blue text-white border-calpop-blue'
-                                : 'bg-white hover:bg-calpop-bg text-calpop-navy border-calpop-navy/15'
+                                : 'bg-white hover:bg-calpop-panel text-calpop-navy border-calpop-navy/15'
                         }`}
                     >
                         <Columns className="w-4 h-4" /> Columns ({visibleColumns.length})
@@ -441,7 +441,7 @@ export function PrisonersPage() {
                             {ALL_COLUMNS.filter(col => !col.locked).map(col => (
                                 <label
                                     key={col.key}
-                                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-calpop-bg cursor-pointer text-sm text-calpop-ink"
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-calpop-panel cursor-pointer text-sm text-calpop-ink"
                                 >
                                     <input
                                         type="checkbox"
@@ -461,7 +461,7 @@ export function PrisonersPage() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                         <thead>
-                            <tr className="bg-calpop-bg text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
+                            <tr className="bg-calpop-panel text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
                                 <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">
                                     <button onClick={() => toggleSort('cpid')} className="flex items-center gap-1 hover:text-calpop-ink">
                                         CPID <SortIcon colKey="cpid" />
@@ -478,7 +478,7 @@ export function PrisonersPage() {
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowStageLegend(v => !v)}
-                                                        className="text-calpop-navy/50 hover:text-calpop-navy"
+                                                        className="text-calpop-navy/70 hover:text-calpop-navy"
                                                         title="Show stage legend"
                                                     >
                                                         <Info className="w-3.5 h-3.5" />

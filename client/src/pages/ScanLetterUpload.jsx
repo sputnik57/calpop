@@ -366,7 +366,7 @@ export function ScanLetterUpload() {
                                             <img
                                                 src={p.dataUrl}
                                                 alt={`Page ${i + 1}`}
-                                                className={`w-28 h-36 object-cover rounded-lg border shadow-sm ${p.redacted ? 'border-calpop-navy/15' : 'border-red-400'}`}
+                                                className={`w-28 h-auto rounded-lg border shadow-sm ${p.redacted ? 'border-calpop-navy/15' : 'border-red-400'}`}
                                             />
                                             <div className="absolute top-1 left-1 bg-slate-900/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
                                                 {i + 1}
@@ -416,7 +416,7 @@ export function ScanLetterUpload() {
                                 {Object.keys(translations).length > 0 && (
                                     <div className="space-y-3">
                                         {capturedPages.map((p, i) => translations[p.id] && (
-                                            <div key={p.id} className="bg-calpop-bg border border-calpop-navy/15 rounded-lg p-3">
+                                            <div key={p.id} className="bg-calpop-panel border border-calpop-navy/15 rounded-lg p-3">
                                                 <div className="text-xs font-bold text-calpop-ink mb-2">
                                                     Page {i + 1}
                                                     {translations[p.id].detected_language && (
@@ -443,12 +443,12 @@ export function ScanLetterUpload() {
                                                 type="button"
                                                 onClick={downloadTranslationDraft}
                                                 disabled={downloadingDraft}
-                                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-bg disabled:opacity-40 flex items-center gap-1.5"
+                                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-panel disabled:opacity-40 flex items-center gap-1.5"
                                             >
                                                 {downloadingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                                                 Download for Review (.docx)
                                             </button>
-                                            <label className="px-3 py-1.5 rounded-lg text-xs font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-bg cursor-pointer">
+                                            <label className="px-3 py-1.5 rounded-lg text-xs font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-panel cursor-pointer">
                                                 Upload Corrected Translation
                                                 <input
                                                     type="file"
@@ -545,7 +545,7 @@ export function ScanLetterUpload() {
                             </div>
                         )}
 
-                        <div className="bg-calpop-bg border border-calpop-navy/15 rounded-lg p-4 text-sm space-y-1.5 font-mono">
+                        <div className="bg-calpop-panel border border-calpop-navy/15 rounded-lg p-4 text-sm space-y-1.5 font-mono">
                             <div>
                                 <span className="text-calpop-navy">Prisoner:</span>{' '}
                                 <span className="text-calpop-ink font-bold">{preview?.cpid || id}</span>
@@ -640,7 +640,7 @@ export function ScanLetterUpload() {
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowConfirmModal(false)}
-                                className="flex-1 py-3 rounded-xl font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-bg"
+                                className="flex-1 py-3 rounded-xl font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-panel"
                             >
                                 Cancel
                             </button>

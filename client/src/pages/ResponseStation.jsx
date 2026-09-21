@@ -1,7 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Save, ArrowLeft, Send, Loader2, Library, X, Mail, User, Building2, MapPin, FileText, Image as ImageIcon } from 'lucide-react'
+import { Save, ArrowLeft, Send, Loader2, Library, X, Mail, User, Building2, MapPin, FileText, Image as ImageIcon, Copy, Check } from 'lucide-react'
 import ReferenceLibrary from '../components/ReferenceLibrary'
+
+// Strips markdown syntax down to plain text, for cutting/pasting straight into Word.
+const stripMarkdown = (text) => {
+    if (!text) return "";
+    return text
+        .replace(/^#{1,6}\s+/gim, '')
+        .replace(/\*\*\*(.*?)\*\*\*/gim, '$1')
+        .replace(/\*\*(.*?)\*\*/gim, '$1')
+        .replace(/\*(.*?)\*/gim, '$1')
+        .replace(/^>\s?/gim, '')
+        .replace(/^[\*\-]\s+/gim, '');
+};
 
 const parseMarkdown = (text) => {
     if (!text) return "";
@@ -44,11 +56,25 @@ export function ResponseStation() {
     // Lifted Workbench State
     const [currQueue, setCurrQueue] = useState([])
     const [histQueue, setHistQueue] = useState([])
+    const [localQueue, setLocalQueue] = useState([])
+    const [transQueue, setTransQueue] = useState([])
+    const [courseQueue, setCourseQueue] = useState([])
     const [activeQueuePath, setActiveQueuePath] = useState(null)
     const [previewContent, setPreviewContent] = useState({})
 
     const [pdfUrl, setPdfUrl] = useState(null)
     const [envelopeUrl, setEnvelopeUrl] = useState(null)
+    const [copied, setCopied] = useState(false)
+
+    const handleCopyClean = async () => {
+        try {
+            await navigator.clipboard.writeText(stripMarkdown(content))
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch (err) {
+            alert('Copy failed: ' + err.message)
+        }
+    }
 
     useEffect(() => {
         fetch(`/api/assignments/${assignmentId}`, { credentials: 'include' })
@@ -178,7 +204,7 @@ export function ResponseStation() {
         return () => clearTimeout(timer)
     }, [content, assignment?.active_submission?.id])
 
-    if (loading) return <div className="p-12 text-center text-slate-400 font-mono text-xl animate-pulse">Initializing Response Area...</div>
+    if (loading) return <div className="p-12 text-center text-calpop-navy font-mono text-xl animate-pulse">Initializing Response Area...</div>
     if (!assignment) return <div className="p-12 text-center text-red-400">Assignment Not Found</div>
 
     const displayName = prisonerDetails ? `${prisonerDetails.first_name || ''} ${prisonerDetails.last_name || ''}`.trim() : assignment.prisoner_cpid
@@ -187,7 +213,7 @@ export function ResponseStation() {
         <div className="max-w-7xl mx-auto space-y-6">
             <button
                 onClick={() => navigate('/inbox')}
-                className="flex items-center gap-2 text-slate-500 hover:text-slate-300 transition-colors text-sm font-mono uppercase tracking-tighter"
+                className="flex items-center gap-2 text-calpop-navy/70 hover:text-calpop-navy transition-colors text-sm font-mono uppercase tracking-tighter"
             >
                 <ArrowLeft className="w-4 h-4" />
                 Return to Work Queue
@@ -195,55 +221,55 @@ export function ResponseStation() {
 
             {/* REVISION FEEDBACK BANNER */}
             {assignment.active_submission?.status === 'revisions_requested' && (
-                <div className="bg-orange-500/10 border border-orange-500/50 p-4 rounded-xl flex items-start gap-4 animate-in slide-in-from-top-2">
-                    <div className="p-2 bg-orange-500/20 rounded-lg text-orange-400">
+                <div className="bg-calpop-accent/10 border border-calpop-accent/50 p-4 rounded-xl flex items-start gap-4 animate-in slide-in-from-top-2">
+                    <div className="p-2 bg-calpop-accent/20 rounded-lg text-calpop-accent">
                         <FileText className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className="text-orange-400 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
+                        <h3 className="text-calpop-accent font-bold uppercase tracking-wider text-sm flex items-center gap-2">
                             Action Required: Revisions Requested
                         </h3>
-                        <p className="text-slate-300 mt-1 text-sm leading-relaxed">
+                        <p className="text-calpop-navy mt-1 text-sm leading-relaxed">
                             {assignment.active_submission.revision_comment || "No specific feedback provided. Please review the facility guidelines and resubmit."}
                         </p>
                     </div>
                 </div>
             )}
 
-            <div className="flex items-center justify-between bg-slate-800/80 p-6 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-sm">
+            <div className="flex items-center justify-between bg-white p-6 rounded-2xl border border-calpop-navy/15 shadow-xl backdrop-blur-sm">
                 <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white shrink-0">
+                    <div className="w-16 h-16 bg-gradient-to-br from-calpop-blue to-calpop-navy rounded-xl flex items-center justify-center shadow-lg text-white shrink-0">
                         <User className="w-8 h-8" />
                     </div>
                     <div>
-                        <h2 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
+                        <h2 className="text-3xl font-bold text-calpop-ink flex items-center gap-3">
                             {displayName}
                             <div className="flex flex-wrap gap-2">
-                                <span className="text-[10px] font-mono px-2 py-1 bg-slate-900 rounded-md text-cyan-400 border border-cyan-500/20" title="Archive CPID">
+                                <span className="text-[10px] font-mono px-2 py-1 bg-calpop-panel rounded-md text-calpop-blue border border-calpop-blue/20" title="Archive CPID">
                                     REF: {prisonerDetails?.cpid || assignment.prisoner_cpid}
                                 </span>
                                 {prisonerDetails?.cdcr_number && prisonerDetails.cdcr_number !== (prisonerDetails?.cpid || assignment.prisoner_cpid) && (
-                                    <span className="text-[10px] font-mono px-2 py-1 bg-slate-900/50 rounded-md text-slate-400 border border-slate-700" title="CDCR Number">
+                                    <span className="text-[10px] font-mono px-2 py-1 bg-calpop-panel rounded-md text-calpop-navy border border-calpop-navy/15" title="CDCR Number">
                                         CDCR: {prisonerDetails.cdcr_number}
                                     </span>
                                 )}
                             </div>
                         </h2>
-                        <div className="flex items-center gap-4 mt-1 text-slate-400">
+                        <div className="flex items-center gap-4 mt-1 text-calpop-navy">
                             <span className="flex items-center gap-1.5 text-sm uppercase tracking-wider font-semibold">
-                                <Building2 className="w-3.5 h-3.5 text-slate-500" /> {prisonerDetails?.facility || 'Unknown Facility'}
+                                <Building2 className="w-3.5 h-3.5 text-calpop-navy/70" /> {prisonerDetails?.facility || 'Unknown Facility'}
                             </span>
-                            <span className="text-slate-600">|</span>
+                            <span className="text-calpop-navy/70">|</span>
                             <span className="flex items-center gap-1.5 text-sm uppercase tracking-wider font-semibold">
-                                <MapPin className="w-3.5 h-3.5 text-slate-500" /> {prisonerDetails?.housing || 'Housing TBD'}
+                                <MapPin className="w-3.5 h-3.5 text-calpop-navy/70" /> {prisonerDetails?.housing || 'Housing TBD'}
                             </span>
 
                             {/* Autosave Status Indicator */}
-                            <span className="text-xs font-mono text-slate-600 ml-4 flex items-center gap-2">
+                            <span className="text-xs font-mono text-calpop-navy/70 ml-4 flex items-center gap-2">
                                 {autosaving ? (
-                                    <span className="text-cyan-500 animate-pulse">Syncing...</span>
+                                    <span className="text-calpop-blue animate-pulse">Syncing...</span>
                                 ) : lastSaved ? (
-                                    <span className="text-emerald-600">Autosaved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="text-calpop-olive">Autosaved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 ) : null}
                             </span>
                         </div>
@@ -253,7 +279,7 @@ export function ResponseStation() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => handleSave(false)}
-                        className="px-5 py-2.5 text-slate-300 hover:bg-slate-700 rounded-xl transition-all flex items-center gap-2 border border-slate-700"
+                        className="px-5 py-2.5 text-calpop-navy hover:bg-calpop-panel rounded-xl transition-all flex items-center gap-2 border border-calpop-navy/15"
                         disabled={saving || pdfUrl}
                     >
                         <Save className="w-4 h-4" />
@@ -262,20 +288,20 @@ export function ResponseStation() {
                     {(!pdfUrl && !envelopeUrl) ? (
                         <button
                             onClick={() => handleSave(true)}
-                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all shadow-lg hover:shadow-emerald-500/30 flex items-center gap-2 font-bold"
+                            className="px-6 py-2.5 bg-calpop-blue hover:bg-calpop-navy text-white rounded-xl transition-all shadow-lg flex items-center gap-2 font-bold"
                             disabled={saving || generating}
                         >
                             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                             Finalize & Archive
                         </button>
                     ) : (
-                        <div className="flex items-center gap-2 bg-emerald-500/10 p-1.5 rounded-xl border border-emerald-500/20">
-                            <span className="text-[10px] text-emerald-400 font-bold px-3 uppercase tracking-widest hidden md:block">Finished</span>
+                        <div className="flex items-center gap-2 bg-calpop-olive/10 p-1.5 rounded-xl border border-calpop-olive/20">
+                            <span className="text-[10px] text-calpop-olive font-bold px-3 uppercase tracking-widest hidden md:block">Finished</span>
                             {pdfUrl && (
                                 <a
                                     href={pdfUrl}
                                     target="_blank"
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all shadow-lg flex items-center gap-2 text-sm font-bold"
+                                    className="px-4 py-2 bg-calpop-blue hover:bg-calpop-navy text-white rounded-lg transition-all shadow-lg flex items-center gap-2 text-sm font-bold"
                                 >
                                     <FileText className="w-4 h-4" /> Letter PDF
                                 </a>
@@ -284,7 +310,7 @@ export function ResponseStation() {
                                 <a
                                     href={envelopeUrl}
                                     target="_blank"
-                                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-all shadow-lg flex items-center gap-2 text-sm font-bold"
+                                    className="px-4 py-2 bg-calpop-accent hover:bg-[#d9662f] text-white rounded-lg transition-all shadow-lg flex items-center gap-2 text-sm font-bold"
                                 >
                                     <Mail className="w-4 h-4" /> Envelope
                                 </a>
@@ -295,46 +321,60 @@ export function ResponseStation() {
             </div>
 
             {/* TAB NAVIGATION */}
-            <div className="flex bg-slate-800/50 p-1 rounded-xl border border-slate-700 w-fit">
+            <div className="flex bg-white p-1 rounded-xl border border-calpop-navy/15 w-fit">
                 {[
                     { id: 'compose', label: 'Compose', icon: <Mail className="w-4 h-4" /> },
                     { id: 'library', label: 'Reference Hub', icon: <Library className="w-4 h-4" /> },
-                    { id: 'source', label: 'Incoming Letter', icon: <FileText className="w-4 h-4" /> }
+                    { id: 'source', label: 'Incoming Letter', icon: <FileText className="w-4 h-4" />, badge: !assignment.letter?.original_file_path ? 'No scan' : null }
                 ].map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id
-                            ? 'bg-cyan-600 text-white shadow-lg'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+                            ? 'bg-calpop-blue text-white shadow-lg'
+                            : 'text-calpop-navy hover:text-calpop-ink hover:bg-calpop-panel'
                             }`}
                     >
                         {tab.icon}
                         {tab.label}
+                        {tab.badge && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-calpop-navy/10 text-calpop-navy/70 font-normal normal-case">
+                                {tab.badge}
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>
 
             {/* FULL-WIDTH WORKSPACE AREA */}
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 min-h-[700px] shadow-2xl overflow-hidden mb-20 flex flex-col">
+            <div className="bg-white rounded-2xl border border-calpop-navy/15 min-h-[700px] shadow-2xl overflow-hidden mb-20 flex flex-col">
                 {activeTab === 'compose' && (
                     <div className="flex flex-col h-full min-h-[700px] animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="p-5 bg-slate-900/80 border-b border-slate-700 flex items-center justify-between">
+                        <div className="p-5 bg-calpop-panel border-b border-calpop-navy/15 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Response Composer</span>
+                                <div className="w-2 h-2 rounded-full bg-calpop-blue animate-pulse"></div>
+                                <span className="text-xs font-bold uppercase tracking-widest text-calpop-blue">Response Composer</span>
                                 <button
                                     onClick={() => setShowPreview(!showPreview)}
-                                    className={`ml-4 px-3 py-1 rounded text-[10px] uppercase font-bold tracking-tighter transition-all border ${showPreview ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                                    className={`ml-4 px-3 py-1 rounded text-[10px] uppercase font-bold tracking-tighter transition-all border ${showPreview ? 'bg-calpop-blue border-calpop-blue text-white' : 'bg-white border-calpop-navy/15 text-calpop-navy/70 hover:text-calpop-navy'}`}
                                 >
                                     {showPreview ? 'Edit Source' : 'Check Preview'}
+                                </button>
+                                <button
+                                    onClick={handleCopyClean}
+                                    disabled={!content}
+                                    className={`px-3 py-1 rounded text-[10px] uppercase font-bold tracking-tighter transition-all border flex items-center gap-1.5 disabled:opacity-30 ${copied ? 'bg-calpop-olive border-calpop-olive text-white' : 'bg-white border-calpop-navy/15 text-calpop-navy/70 hover:text-calpop-navy'}`}
+                                    title="Copy plain text (markdown symbols stripped) for pasting into Word"
+                                >
+                                    {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                    {copied ? 'Copied' : 'Copy Clean Text'}
                                 </button>
                             </div>
                             <input
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                className="bg-slate-950/50 px-4 py-1.5 rounded-lg border border-slate-700/50 text-xs text-slate-300 focus:border-cyan-500/50 outline-none text-right font-mono w-96 transition-all"
+                                className="bg-white px-4 py-1.5 rounded-lg border border-calpop-navy/15 text-xs text-calpop-navy focus:border-calpop-blue outline-none text-right font-mono w-96 transition-all"
                                 placeholder="Response Title"
                             />
                         </div>
@@ -344,29 +384,29 @@ export function ResponseStation() {
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
                                 placeholder="Share your thoughts here... Use markdown for formatting."
-                                className={`flex-1 p-10 bg-transparent text-slate-100 font-sans text-2xl leading-relaxed outline-none resize-none placeholder:text-slate-700 transition-all ${showPreview ? 'border-r border-slate-700' : ''}`}
+                                className={`flex-1 p-10 bg-transparent text-calpop-ink font-sans text-2xl leading-relaxed outline-none resize-none placeholder:text-calpop-navy/70 transition-all ${showPreview ? 'border-r border-calpop-navy/15' : ''}`}
                             />
                             {showPreview && (
-                                <div className="flex-1 p-10 bg-slate-900/10 overflow-auto prose prose-invert prose-2xl max-w-none">
+                                <div className="flex-1 p-10 bg-calpop-panel overflow-auto prose prose-2xl max-w-none">
                                     <div
-                                        className="font-serif text-slate-200 leading-relaxed whitespace-pre-wrap"
+                                        className="font-serif text-calpop-ink leading-relaxed whitespace-pre-wrap"
                                         dangerouslySetInnerHTML={{ __html: parseMarkdown(content) || "Nothing to preview yet." }}
                                     />
-                                    <div className="mt-8 pt-8 border-t border-slate-800 text-slate-600 text-[10px] uppercase font-mono tracking-widest italic">
+                                    <div className="mt-8 pt-8 border-t border-calpop-navy/10 text-calpop-navy/70 text-[10px] uppercase font-mono tracking-widest italic">
                                         Live Digital Simulation
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-4 bg-slate-900/50 border-t border-slate-700 flex justify-between items-center px-8 text-[10px] font-mono uppercase tracking-widest">
-                            <div className="flex items-center gap-6 text-slate-500">
+                        <div className="p-4 bg-calpop-panel border-t border-calpop-navy/15 flex justify-between items-center px-8 text-[10px] font-mono uppercase tracking-widest">
+                            <div className="flex items-center gap-6 text-calpop-navy/70">
                                 <span className="flex items-center gap-1.5"><Save className="w-3 h-3" /> Secure Draft Active</span>
-                                <span className="text-amber-500/80 border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 rounded italic">
+                                <span className="text-calpop-accent border border-calpop-accent/20 bg-calpop-accent/10 px-2 py-0.5 rounded italic">
                                     Note: Rendering may vary. Proofread carefully before printing.
                                 </span>
                             </div>
-                            <div className="text-slate-400 bg-slate-950 px-3 py-1 rounded-full border border-slate-800">
+                            <div className="text-calpop-navy bg-white px-3 py-1 rounded-full border border-calpop-navy/15">
                                 {content.split(/\s+/).filter(Boolean).length} words / {content.length} characters
                             </div>
                         </div>
@@ -385,6 +425,9 @@ export function ResponseStation() {
                             workbenchState={{
                                 currQueue, setCurrQueue,
                                 histQueue, setHistQueue,
+                                localQueue, setLocalQueue,
+                                transQueue, setTransQueue,
+                                courseQueue, setCourseQueue,
                                 activeQueuePath, setActiveQueuePath,
                                 previewContent, setPreviewContent
                             }}
@@ -393,32 +436,42 @@ export function ResponseStation() {
                 )}
 
                 {activeTab === 'source' && (
-                    <div className="flex h-full min-h-[700px] animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        {/* Left Side: Original Scan (Bigger) */}
-                        <div className="w-2/3 border-r border-slate-700 bg-slate-950 p-6 flex items-start justify-center overflow-y-auto">
-                            <div className="w-full">
-                                <div className="mb-4 flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                    <ImageIcon className="w-3 h-3" /> Original Scan Artifact
+                    assignment.letter?.original_file_path ? (
+                        <div className="flex h-full min-h-[700px] animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {/* Left Side: Original Scan (Bigger) */}
+                            <div className="w-2/3 border-r border-calpop-navy/15 bg-calpop-panel p-6 flex items-start justify-center overflow-y-auto">
+                                <div className="w-full">
+                                    <div className="mb-4 flex items-center gap-2 text-[10px] font-bold text-calpop-navy/70 uppercase tracking-widest">
+                                        <ImageIcon className="w-3 h-3" /> Original Scan Artifact
+                                    </div>
+                                    <img
+                                        src={getImageUrl(assignment.letter?.original_file_path)}
+                                        className="w-full h-auto rounded-lg shadow-2xl border border-calpop-navy/15 object-contain"
+                                        alt="Incoming Letter"
+                                    />
                                 </div>
-                                <img
-                                    src={getImageUrl(assignment.letter?.original_file_path)}
-                                    className="w-full h-auto rounded-lg shadow-2xl border border-slate-800 object-contain"
-                                    alt="Incoming Letter"
-                                />
                             </div>
-                        </div>
 
-                        {/* Right Side: Transcription (Smaller Sidebar) */}
-                        <div className="w-1/3 bg-slate-900/30 p-8 overflow-y-auto">
-                            <div className="mb-8 flex items-center gap-4 p-4 bg-slate-900/80 rounded-xl border border-slate-700 font-mono text-[10px] text-slate-500 uppercase tracking-widest">
-                                <FileText className="w-4 h-4 text-amber-500" />
-                                <span>OCR Reconstruction</span>
-                            </div>
-                            <div className="font-mono text-sm leading-relaxed text-slate-400 whitespace-pre-wrap select-all px-4">
-                                {assignment.letter?.latest_version?.content || "No transcription data available for this record."}
+                            {/* Right Side: Transcription (Smaller Sidebar) */}
+                            <div className="w-1/3 bg-calpop-panel p-8 overflow-y-auto">
+                                <div className="mb-8 flex items-center gap-4 p-4 bg-white rounded-xl border border-calpop-navy/15 font-mono text-[10px] text-calpop-navy/70 uppercase tracking-widest">
+                                    <FileText className="w-4 h-4 text-calpop-accent" />
+                                    <span>OCR Reconstruction</span>
+                                </div>
+                                <div className="font-mono text-sm leading-relaxed text-calpop-navy whitespace-pre-wrap select-all px-4">
+                                    {assignment.letter?.latest_version?.content || "No transcription data available for this record."}
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full min-h-[700px] text-center px-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <ImageIcon className="w-10 h-10 text-calpop-navy/70 mb-4" />
+                            <h3 className="text-calpop-navy font-bold uppercase tracking-wider text-sm mb-2">No Scan On File</h3>
+                            <p className="text-calpop-navy/70 text-sm max-w-md leading-relaxed">
+                                This letter wasn't digitized — write your response from the physical copy in hand.
+                            </p>
+                        </div>
+                    )
                 )}
             </div>
         </div>

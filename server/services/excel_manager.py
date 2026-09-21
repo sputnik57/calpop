@@ -444,7 +444,12 @@ class ExcelMapManager:
             'review_notes': field('Review notes'),
             'date_sponsor_assigned': field('Date Sponsor assigned'),
             'letter_exchange_count': int_field('letter exchange (received only)'),
-            'step_received_count': int_field('Step (received only)'),
+            # Header renamed "Step (received only)" -> "Current Step" 20Sep2026
+            # (it's the step the sponsee is working on -- see the model comment).
+            # Import accepts BOTH so a sheet saved under the old name still loads:
+            # a missing column reads as blank here, which would otherwise silently
+            # wipe every person's step on upload.
+            'step_received_count': int_field('Current Step' if 'Current Step' in row else 'Step (received only)'),
             'bph_date': field('BPH DATE'),
         }
 

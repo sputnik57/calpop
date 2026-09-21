@@ -3,6 +3,7 @@ import { Mail, CheckCircle2, Loader2, Send, X, ExternalLink, Printer } from 'luc
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SubTabs } from '../components/SubTabs'
 import { IntakeArea } from './ScantronStation'
+import { usePrisonerDirectory } from '../hooks/usePrisonerDirectory'
 
 // Address/info corrections for an EXISTING person happen in DB Mgt's Update
 // Person tab, not here. This tab is a redirect, not a panel -- it exists in
@@ -47,7 +48,7 @@ function AddNewPersonForm() {
         }
     }
 
-    const inputClass = "w-full bg-calpop-bg border border-calpop-navy/25 rounded-lg px-4 py-2.5 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all"
+    const inputClass = "w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-4 py-2.5 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all"
     const labelClass = "text-xs font-bold text-calpop-navy uppercase tracking-widest block mb-2"
 
     return (
@@ -102,7 +103,7 @@ function PrintEnvelopesPanel() {
     const [batchResult, setBatchResult] = useState(null)
 
     const [searchTerm, setSearchTerm] = useState('')
-    const [allPrisoners, setAllPrisoners] = useState(null) // lazily loaded, search-only
+    const { ensureLoaded: ensurePrisonersLoaded, search: searchPrisoners } = usePrisonerDirectory()
     const [addingCpid, setAddingCpid] = useState(null)
 
     const loadQueue = () => {
@@ -124,23 +125,13 @@ function PrintEnvelopesPanel() {
 
     const handleSearchChange = (value) => {
         setSearchTerm(value)
-        if (allPrisoners === null && value.trim()) {
-            fetch('/api/prisoners', { credentials: 'include' })
-                .then(res => res.json())
-                .then(data => setAllPrisoners(data || []))
-                .catch(() => setAllPrisoners([]))
-        }
+        if (value.trim()) ensurePrisonersLoaded()
     }
 
-    const searchResults = (searchTerm.trim() && allPrisoners)
-        ? allPrisoners.filter(p => {
-            const term = searchTerm.toLowerCase()
-            const alreadyQueued = queue.some(q => q.cpid === p.cpid)
-            if (alreadyQueued) return false
-            return p.cpid?.toLowerCase().includes(term)
-                || p.first_name?.toLowerCase().includes(term)
-                || p.last_name?.toLowerCase().includes(term)
-        }).slice(0, 8)
+    const searchResults = searchTerm.trim()
+        ? searchPrisoners(searchTerm)
+            .filter(p => !queue.some(q => q.cpid === p.cpid))
+            .slice(0, 8)
         : []
 
     const addToQueue = async (cpid) => {
@@ -238,7 +229,7 @@ function PrintEnvelopesPanel() {
                             )}
                         </div>
                         <button onClick={() => setBatchResult(null)}
-                                className="w-full py-2 bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-navy rounded-lg text-sm font-bold border border-calpop-navy/15">
+                                className="w-full py-2 bg-calpop-panel hover:bg-calpop-navy/10 text-calpop-navy rounded-lg text-sm font-bold border border-calpop-navy/15">
                             Back to List
                         </button>
                     </div>
@@ -253,7 +244,7 @@ function PrintEnvelopesPanel() {
                                 <Mail className="w-6 h-6 text-calpop-blue" /> Batch Correspondence
                             </h3>
                             <div className="flex items-center gap-3">
-                                <span className="bg-calpop-bg text-calpop-blue px-3 py-1 rounded-full text-xs font-bold font-mono border border-calpop-navy/15">
+                                <span className="bg-calpop-panel text-calpop-blue px-3 py-1 rounded-full text-xs font-bold font-mono border border-calpop-navy/15">
                                     Recipients: {selectedCpids.length}
                                 </span>
                                 <button onClick={() => setShowBatchModal(false)} className="text-calpop-navy hover:text-calpop-ink">
@@ -266,7 +257,7 @@ function PrintEnvelopesPanel() {
                                 <label className="text-xs font-bold text-calpop-navy uppercase tracking-widest block mb-2">Subject / Batch Title</label>
                                 <input
                                     type="text"
-                                    className="w-full bg-calpop-bg border border-calpop-navy/25 rounded-lg px-4 py-3 text-calpop-ink focus:border-calpop-blue outline-none"
+                                    className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-4 py-3 text-calpop-ink focus:border-calpop-blue outline-none"
                                     placeholder="e.g. Monthly Newsletter - January"
                                     value={batchData.title}
                                     onChange={e => setBatchData({ ...batchData, title: e.target.value })}
@@ -275,7 +266,7 @@ function PrintEnvelopesPanel() {
                             <div>
                                 <label className="text-xs font-bold text-calpop-navy uppercase tracking-widest block mb-2">Message Content (Markdown Supported)</label>
                                 <textarea
-                                    className="w-full bg-calpop-bg border border-calpop-navy/25 rounded-lg px-4 py-3 text-calpop-ink focus:border-calpop-blue outline-none h-60 font-mono text-sm leading-relaxed"
+                                    className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-4 py-3 text-calpop-ink focus:border-calpop-blue outline-none h-60 font-mono text-sm leading-relaxed"
                                     placeholder="Type your unified message here..."
                                     value={batchData.content}
                                     onChange={e => setBatchData({ ...batchData, content: e.target.value })}
@@ -284,7 +275,7 @@ function PrintEnvelopesPanel() {
                         </div>
                         <div className="flex gap-4 pt-4 border-t border-calpop-navy/10">
                             <button onClick={() => setShowBatchModal(false)}
-                                    className="flex-1 py-3 bg-calpop-bg hover:bg-calpop-navy/10 text-calpop-navy rounded-xl font-bold border border-calpop-navy/15">
+                                    className="flex-1 py-3 bg-calpop-panel hover:bg-calpop-navy/10 text-calpop-navy rounded-xl font-bold border border-calpop-navy/15">
                                 CANCEL
                             </button>
                             <button
@@ -342,7 +333,7 @@ function PrintEnvelopesPanel() {
                     {queue.map((p) => {
                         const isSelected = selectedCpids.includes(p.cpid)
                         return (
-                            <div key={p.cpid} className="flex items-center gap-4 px-5 py-3.5 hover:bg-calpop-bg/60">
+                            <div key={p.cpid} className="flex items-center gap-4 px-5 py-3.5 hover:bg-calpop-panel/60">
                                 <input
                                     type="checkbox"
                                     checked={isSelected}

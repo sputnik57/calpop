@@ -130,7 +130,7 @@ export function PageRedactionEditor({ imageDataUrl, onSave, onCancel }) {
                         <Square className="w-3 h-3 text-cyan-400" /> Add Redaction
                     </button>
                     <div className="flex gap-2">
-                        <button onClick={onCancel} className="px-5 py-2 rounded-lg font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-bg">
+                        <button onClick={onCancel} className="px-5 py-2 rounded-lg font-bold text-calpop-navy border border-calpop-navy/15 hover:bg-calpop-panel">
                             Cancel
                         </button>
                         <button onClick={applyRedaction} className="px-5 py-2 rounded-lg font-bold text-white bg-calpop-accent hover:brightness-95 flex items-center gap-2">

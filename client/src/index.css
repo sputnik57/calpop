@@ -11,33 +11,33 @@ body {
 
 /* Premium DOCX & Markdown rendering */
 .docx-preview-container, .markdown-preview {
-  @apply text-slate-200 leading-relaxed;
+  @apply text-calpop-navy leading-relaxed;
 }
 
 .docx-preview-container p, .markdown-preview p {
   @apply mb-4;
 }
 
-.docx-preview-container h1, .markdown-preview h1 { @apply text-2xl font-bold text-white mb-6 border-b border-white/10 pb-2; }
-.docx-preview-container h2, .markdown-preview h2 { @apply text-xl font-bold text-white mb-4 mt-8; }
-.docx-preview-container h3, .markdown-preview h3 { @apply text-lg font-bold text-emerald-400 mb-3 mt-6; }
+.docx-preview-container h1, .markdown-preview h1 { @apply text-2xl font-bold text-calpop-ink mb-6 border-b border-calpop-navy/15 pb-2; }
+.docx-preview-container h2, .markdown-preview h2 { @apply text-xl font-bold text-calpop-ink mb-4 mt-8; }
+.docx-preview-container h3, .markdown-preview h3 { @apply text-lg font-bold text-calpop-blue mb-3 mt-6; }
 
 .docx-preview-container ul, .markdown-preview ul { @apply list-disc ml-6 mb-4 space-y-2; }
 .docx-preview-container ol, .markdown-preview ol { @apply list-decimal ml-6 mb-4 space-y-2; }
 
 .docx-preview-container blockquote, .markdown-preview blockquote {
-  @apply border-l-4 border-emerald-500/50 bg-emerald-500/5 px-6 py-4 my-6 italic rounded-r-lg;
+  @apply border-l-4 border-calpop-blue/50 bg-calpop-blue/5 px-6 py-4 my-6 italic rounded-r-lg;
 }
 
-.docx-preview-container strong, .markdown-preview strong { @apply text-white font-bold; }
-.docx-preview-container em, .markdown-preview em { @apply text-slate-300 italic; }
+.docx-preview-container strong, .markdown-preview strong { @apply text-calpop-ink font-bold; }
+.docx-preview-container em, .markdown-preview em { @apply text-calpop-navy/80 italic; }
 
 .docx-preview-container table, .markdown-preview table {
-  @apply w-full border-collapse border border-slate-800 my-6;
+  @apply w-full border-collapse border border-calpop-navy/15 my-6;
 }
 .docx-preview-container th, .markdown-preview th {
-  @apply bg-slate-900 border border-slate-800 p-3 text-left font-bold text-xs uppercase tracking-widest;
+  @apply bg-calpop-panel border border-calpop-navy/15 p-3 text-left font-bold text-xs uppercase tracking-widest text-calpop-navy;
 }
 .docx-preview-container td, .markdown-preview td {
-  @apply border border-slate-800 p-3 text-sm;
+  @apply border border-calpop-navy/15 p-3 text-sm;
 }

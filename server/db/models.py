@@ -121,7 +121,7 @@ class Prisoner(Base, TimestampMixin):
     review_notes: Mapped[Optional[str]] = mapped_column(EncryptedString)  # free text -- may describe safety/case concerns
     date_sponsor_assigned: Mapped[Optional[str]] = mapped_column(EncryptedString)
     letter_exchange_count: Mapped[Optional[int]] = mapped_column(Integer)  # roster's "letter exchange (received only)"
-    step_received_count: Mapped[Optional[int]] = mapped_column(Integer)  # roster's "Step (received only)"
+    step_received_count: Mapped[Optional[int]] = mapped_column(Integer)  # roster's "Current Step" (formerly "Step (received only)"): the step the sponsee is working on, judged from what they sent us
     bph_date: Mapped[Optional[str]] = mapped_column(Text)  # Board of Parole Hearings date. Plaintext (not encrypted like the fields above) so upcoming hearings can be queried/sorted directly.
 
     # Print queue (added 18Aug2026): set the moment a scan is confirmed with

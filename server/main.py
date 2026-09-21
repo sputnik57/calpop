@@ -109,6 +109,17 @@ db = LetterDatabase(str(legacy_db_path))
 
 @app.on_event("startup")
 async def startup_event():
+    # Wipe the Local Files upload cache on every startup -- it's a container-
+    # only temp copy of curriculum/past-letter files uploaded via the browser
+    # (Reference Hub's Local Files tab), never bind-mounted to the host, so
+    # this is the actual enforcement of "gone after the docker session
+    # closes" rather than just a comment saying so.
+    import shutil
+    local_root = settings.library_local_root
+    if local_root.exists():
+        shutil.rmtree(local_root)
+    local_root.mkdir(parents=True, exist_ok=True)
+
     print("\n--- Registered Routes ---")
     for route in app.routes:
         if hasattr(route, "path"):
@@ -446,7 +457,7 @@ def export_prisoners_excel(user=Depends(require_admin)):
                 "Date Sponsor assigned": p.date_sponsor_assigned,
                 "CPID": p.cpid,
                 "letter exchange (received only)": p.letter_exchange_count,
-                "Step (received only)": p.step_received_count,
+                "Current Step": p.step_received_count,  # was "Step (received only)"; importer still accepts the old name
                 "BPH DATE": p.bph_date,
             }
             for p in prisoners

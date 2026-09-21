@@ -6,8 +6,15 @@
 # ("Prerequisites") and README.md for the full setup and OLLAMA_BASE_URL /
 # OLLAMA_VISION_MODEL config. `httpx` below is what this backend uses to call
 # it over HTTP. `google-cloud-vision` is an optional, off-by-default cloud
-# OCR fallback (OCR_PROVIDER=google_vision) -- letter-content translation
-# refuses to use it at all (see OCRService.translate_image).
+# OCR fallback (OCR_PROVIDER=google_vision) for envelope routing. Letter
+# *content* OCR/translation stays local-only by default too, with one
+# narrow, explicit exception (added 31Aug2026): TranslateLetter.jsx's
+# opt-in "Translate via Google Vision" path, which is hard-gated on the
+# page being redacted first (see /transcribe-page-cloud and
+# /translate-lines-cloud in api/letters.py) -- Rey's own manual fallback
+# for content the local model handles poorly, done from here instead so
+# the redaction gate is actually enforced rather than relied on by habit.
+# `google-cloud-translate` backs that path's translation step.
 
 fastapi
 uvicorn
@@ -29,6 +36,8 @@ python-docx
 PyPDF2
 reportlab
 google-cloud-vision
+google-cloud-translate
+Pillow
 mammoth
 markdown
 rapidfuzz

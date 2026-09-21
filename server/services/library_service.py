@@ -67,7 +67,13 @@ class LibraryService:
             allowed = True
         if settings.library_history_root and file_path.resolve().is_relative_to(settings.library_history_root.resolve()):
             allowed = True
-            
+        if settings.library_local_root and file_path.resolve().is_relative_to(settings.library_local_root.resolve()):
+            allowed = True
+        if settings.library_translations_root and file_path.resolve().is_relative_to(settings.library_translations_root.resolve()):
+            allowed = True
+        if file_path.resolve().is_relative_to(settings.bilingual_output_root.resolve()):
+            allowed = True  # Course Students sync folder
+
         if not allowed:
              raise PermissionError("Access denied to file outside library roots")
 

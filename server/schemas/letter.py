@@ -169,6 +169,45 @@ class TranslateImageResult(BaseModel):
     confidence_is_self_reported: bool
 
 
+class TranscribeCloudRequest(BaseModel):
+    image_data: str = Field(..., description="Base64 encoded (data URL or bare) REDACTED page image")
+    redaction_confirmed: bool = Field(
+        ...,
+        description="Must be true. Structural gate, not just a UI hint -- the endpoint refuses the request otherwise. There's no server-side way to verify pixel content is actually redacted; this flag exists so the intent has to be explicit rather than sending letter content to Google Vision as a side effect of any other flag/default.",
+    )
+
+
+class OverlayTranslationResult(BaseModel):
+    image_base64: str = Field(..., description="Composited PNG (translation painted onto the original image), base64-encoded")
+    original_text: str
+    translation: str
+
+
+class TranslateLinesCloudRequest(BaseModel):
+    lines: List[str] = Field(..., description="Lines to translate -- expected to be from a transcription of an already-redacted image")
+    redaction_confirmed: bool = Field(
+        ...,
+        description="Must be true. Same posture as TranscribeCloudRequest -- this is letter content reaching Google, so the gate applies to the translation step too, not just OCR.",
+    )
+
+
+class TranscribeImageResult(BaseModel):
+    lines: List[str]
+    original_text: str
+    detected_language: Optional[str] = None
+    confidence: float
+    confidence_is_self_reported: bool
+
+
+class TranslateLinesRequest(BaseModel):
+    lines: List[str] = Field(..., description="Lines from a prior /transcribe-page call, in order")
+
+
+class TranslateLinesResult(BaseModel):
+    translation: str
+    translation_lines: List[str]
+
+
 class TranslationPageIn(BaseModel):
     original_text: str = ""
     translation: str = ""
@@ -180,4 +219,16 @@ class TranslationDocxRequest(BaseModel):
     personal_use: bool = Field(
         False,
         description="True for the standalone Translate tool (Rey reading his own sponsee's letter) -- swaps the doc heading away from the sponsor-facing 'needs bilingual review' framing, since there's no reviewer and nothing is ever uploaded.",
+    )
+
+
+class TranslationDocxSaveRequest(TranslationDocxRequest):
+    cpid: Optional[str] = Field(
+        None, description="Prisoner CPID, if known -- files into a per-CPID subfolder under the translations library root, matching the History tab's convention. Untagged saves go in an 'unfiled' subfolder."
+    )
+    title: Optional[str] = Field(
+        None, description="Optional filename stem. Falls back to a timestamp if omitted."
+    )
+    overlay_images: Optional[List[Optional[str]]] = Field(
+        None, description="Parallel array to `pages` -- base64 (data URL or bare) composited overlay PNG for that page, or null if that page has no overlay. When present, each non-null entry is saved as its own PNG alongside the DOCX, since the overlay (position-preserving translation) is a different artifact than the flat-text DOCX and neither replaces the other."
     )

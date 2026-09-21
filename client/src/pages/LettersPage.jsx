@@ -67,7 +67,7 @@ export function LettersPage() {
                     <input
                         type="text"
                         placeholder="Search by prisoner ID or title..."
-                        className="w-full bg-calpop-bg border border-calpop-navy/25 rounded-lg pl-10 pr-4 py-2 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-colors"
+                        className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg pl-10 pr-4 py-2 text-calpop-ink focus:outline-none focus:border-calpop-blue transition-colors"
                     />
                 </div>
             </div>
@@ -77,7 +77,7 @@ export function LettersPage() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                         <thead>
-                            <tr className="bg-calpop-bg text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
+                            <tr className="bg-calpop-panel text-calpop-navy text-xs uppercase tracking-wider border-b border-calpop-navy/15">
                                 <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Status</th>
                                 <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Title</th>
                                 <th className="text-left font-bold px-4 py-2.5 whitespace-nowrap">Prisoner ID</th>
