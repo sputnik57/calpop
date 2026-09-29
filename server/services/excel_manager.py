@@ -468,7 +468,7 @@ class ExcelMapManager:
             # Import accepts BOTH so a sheet saved under the old name still loads:
             # a missing column reads as blank here, which would otherwise silently
             # wipe every person's step on upload.
-            'step_received_count': int_field('Current Step' if 'Current Step' in row else 'Step (received only)'),
+            'step_received_count': field('Current Step' if 'Current Step' in row else 'Step (received only)'),  # free text, not a number -- see model comment
             'bph_date': date_field('BPH DATE'),
         }
 

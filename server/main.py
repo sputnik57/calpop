@@ -556,7 +556,7 @@ def remove_from_print_queue(cpid: str, user=Depends(require_admin)):
         db.close()
 
 
-_PRISONER_INT_FIELDS = {"stage", "letter_exchange_count", "step_received_count"}
+_PRISONER_INT_FIELDS = {"stage", "letter_exchange_count"}  # step_received_count is free text as of 29Sep2026, not a number
 
 
 @app.patch("/api/prisoners/{cpid}")
