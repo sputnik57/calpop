@@ -12,6 +12,15 @@ function fmt(iso) {
     })
 }
 
+// For pre-filling a <input type="datetime-local"> from an ISO value --
+// that input wants local time with no timezone/seconds, "YYYY-MM-DDTHH:mm".
+function toLocalInputValue(iso) {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const pad = n => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // One row for a touchpoint that's tracked automatically -- no user input,
 // just a read-only fact (or "not yet") plus who/what sets it.
 function AutoRow({ icon: Icon, label, sourceNote, value, extra }) {
@@ -92,6 +101,62 @@ function ManualRow({ icon: Icon, label, sourceNote, value, onSet, onClear, savin
                                 Set date
                             </button>
                         </>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Like ManualRow, but always shows an editable date field -- even once a
+// value is set -- rather than hiding the input behind "Clear" first. Used
+// for dates that can carry an initial best-effort guess (postmark's OCR
+// guess) or simply need easy correction (letter's own written date), not
+// just a one-shot "mark it done."
+function EditableDateRow({ icon: Icon, label, sourceNote, value, onSet, onClear, saving }) {
+    const done = !!value
+    const [draft, setDraft] = useState(toLocalInputValue(value))
+
+    useEffect(() => { setDraft(toLocalInputValue(value)) }, [value])
+
+    return (
+        <div className="flex items-start gap-3 py-2.5">
+            {done ? (
+                <CheckCircle2 className="w-5 h-5 text-calpop-blue shrink-0 mt-0.5" />
+            ) : (
+                <Circle className="w-5 h-5 text-calpop-navy/30 shrink-0 mt-0.5" />
+            )}
+            <Icon className="w-4 h-4 text-calpop-navy/50 shrink-0 mt-1" />
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-calpop-ink">{label}</span>
+                    {done && (
+                        <span className="text-xs font-mono text-calpop-navy/70 whitespace-nowrap">{fmt(value)}</span>
+                    )}
+                </div>
+                <div className="text-[11px] text-calpop-navy/50 mb-1">{sourceNote}</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                        type="datetime-local"
+                        value={draft}
+                        onChange={e => setDraft(e.target.value)}
+                        className="text-xs border border-calpop-navy/25 rounded px-1.5 py-1 text-calpop-ink"
+                    />
+                    <button
+                        disabled={saving || !draft}
+                        onClick={() => onSet(new Date(draft).toISOString())}
+                        className="text-xs px-2 py-1 bg-calpop-blue/10 text-calpop-blue rounded hover:bg-calpop-blue/20 disabled:opacity-40 font-medium"
+                    >
+                        {done ? 'Correct date' : 'Set date'}
+                    </button>
+                    {done && (
+                        <button
+                            disabled={saving}
+                            onClick={onClear}
+                            className="text-xs text-calpop-navy/60 hover:text-red-600 underline disabled:opacity-50"
+                        >
+                            Clear
+                        </button>
                     )}
                 </div>
             </div>
@@ -190,7 +255,24 @@ export function LetterJourneyPanel({ letterId }) {
             </div>
 
             <div className="px-6 divide-y divide-calpop-navy/10">
-                <AutoRow icon={Mail} label="Letter postmarked" sourceNote="Auto -- best-effort OCR guess at scan, human-correctable at intake" value={dates.postmarked_at} />
+                <EditableDateRow
+                    icon={PenLine}
+                    label="Letter written"
+                    sourceNote="Manual -- the date on the letter itself, not the envelope's postmark"
+                    value={dates.letter_written_at}
+                    onSet={(v) => setJourneyField('letter_written_at', v)}
+                    onClear={() => setJourneyField('letter_written_at', null)}
+                    saving={saving}
+                />
+                <EditableDateRow
+                    icon={Mail}
+                    label="Letter postmarked"
+                    sourceNote="Auto -- best-effort OCR guess at scan, correctable here"
+                    value={dates.postmarked_at}
+                    onSet={(v) => setJourneyField('postmarked_at', v)}
+                    onClear={() => setJourneyField('postmarked_at', null)}
+                    saving={saving}
+                />
                 <AutoRow icon={Inbox} label="PO box pickup" sourceNote="Auto -- entered at scan intake" value={dates.picked_up_at} />
                 <AutoRow icon={ScanLine} label="Envelope scanned" sourceNote="Auto -- set the moment the envelope is scanned" value={dates.scanned_at} />
                 <AutoRow

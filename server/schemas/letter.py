@@ -10,6 +10,7 @@ class LetterDatesOut(BaseModel):
     scanned_at: Optional[datetime] = None
     picked_up_at: Optional[datetime] = None
     postmarked_at: Optional[datetime] = None
+    letter_written_at: Optional[datetime] = None
     response_started_at: Optional[datetime] = None
     response_submitted_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
@@ -32,10 +33,18 @@ class LetterDatesOut(BaseModel):
 
 
 class LetterJourneyUpdate(BaseModel):
-    """PATCH body for the manual "Letter Journey" touchpoints -- the ones
-    Rey enters himself (see LetterDates' docstring for which). Every field
-    is independently optional/nullable: the frontend sends only the one
-    field being set, and an explicit null clears a previously-set date."""
+    """PATCH body for the manually-entered/corrected "Letter Journey"
+    fields (see LetterDates' docstring). Every field is independently
+    optional/nullable: the frontend sends only the one field being set, and
+    an explicit null clears a previously-set date.
+
+    postmarked_at is included here even though it's also auto-set by an
+    OCR guess at scan time -- that guess is a starting point, not
+    guaranteed right, so it's correctable the same way as the fully-manual
+    fields below. letter_written_at has no auto path at all (no OCR guess
+    for the letter's own dateline, distinct from the envelope's postmark)."""
+    postmarked_at: Optional[datetime] = None
+    letter_written_at: Optional[datetime] = None
     informed_sponsor_at: Optional[datetime] = None
     sponsor_finished_at: Optional[datetime] = None
     admin_reviewed_at: Optional[datetime] = None

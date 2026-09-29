@@ -322,6 +322,14 @@ class LetterDates(Base):
     scanned_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     picked_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     postmarked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    # The date written on the letter itself (its dateline), distinct from
+    # postmarked_at (the envelope's postal stamp) -- a prisoner's letter and
+    # its envelope can carry different dates. Always manual; no OCR guess
+    # for this one. Added 29Sep2026 alongside making postmarked_at itself
+    # correctable post-scan (both via PATCH /api/letters/{id}/journey) --
+    # postmarked_at's OCR guess at scan time is a starting point, not
+    # guaranteed right.
+    letter_written_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     response_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     response_submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
