@@ -14,13 +14,39 @@ router = APIRouter(tags=["sponsors"])
 
 
 def _sponsee_counts(db: Session) -> dict:
+    """
+    {sponsor_name: {"active": n, "dormant": n}} -- split by Stage, not a
+    single raw count, per Rey (29Sep2026): a flat count looked "too high"
+    because it silently included Stage 90+ (terminal/exception codes --
+    dropped, went silent, etc; see RECOGNIZED_STAGES in excel_manager.py),
+    mixed in with genuinely active sponsees (main sequence, Stage 1-12).
+    Anything else (blank Stage, or a value outside both ranges) falls into
+    neither bucket, same as it fell outside RECOGNIZED_STAGES before this.
+    """
     rows = (
-        db.query(Prisoner.sponsor_name, func.count(Prisoner.cpid))
+        db.query(
+            Prisoner.sponsor_name,
+            func.count(Prisoner.cpid).filter(Prisoner.stage.between(1, 12)),
+            func.count(Prisoner.cpid).filter(Prisoner.stage >= 90),
+        )
         .filter(Prisoner.sponsor_name.isnot(None))
         .group_by(Prisoner.sponsor_name)
         .all()
     )
-    return {name: count for name, count in rows}
+    return {name: {"active": active, "dormant": dormant} for name, active, dormant in rows}
+
+
+def _count_for(sponsor: Sponsor, counts: dict) -> dict:
+    """
+    A sponsor_type='course' row represents Rey's own bulk sponsees, whose
+    Prisoner.sponsor_name is always the literal sentinel "Course" or "Rey G"
+    (see that column's model comment, and the 29Sep2026 rename note) -- NOT
+    necessarily this Sponsor's own display name. Kept as a fallback for any
+    future sponsor_type='course' row that doesn't share its exact name.
+    """
+    if sponsor.sponsor_type == "course":
+        return counts.get("Course", {"active": 0, "dormant": 0})
+    return counts.get(sponsor.name, {"active": 0, "dormant": 0})
 
 
 @router.get("", response_model=List[SponsorOut])
@@ -33,7 +59,9 @@ def list_sponsors(
     out = []
     for s in sponsors:
         item = SponsorOut.model_validate(s)
-        item.sponsee_count = counts.get(s.name, 0)
+        counted = _count_for(s, counts)
+        item.sponsee_count_active = counted["active"]
+        item.sponsee_count_dormant = counted["dormant"]
         out.append(item)
     return out
 
@@ -55,7 +83,9 @@ def create_sponsor(
 
     counts = _sponsee_counts(db)
     item = SponsorOut.model_validate(sponsor)
-    item.sponsee_count = counts.get(sponsor.name, 0)
+    counted = _count_for(sponsor, counts)
+    item.sponsee_count_active = counted["active"]
+    item.sponsee_count_dormant = counted["dormant"]
     return item
 
 
@@ -77,7 +107,9 @@ def update_sponsor(
 
     counts = _sponsee_counts(db)
     item = SponsorOut.model_validate(sponsor)
-    item.sponsee_count = counts.get(sponsor.name, 0)
+    counted = _count_for(sponsor, counts)
+    item.sponsee_count_active = counted["active"]
+    item.sponsee_count_dormant = counted["dormant"]
     return item
 
 

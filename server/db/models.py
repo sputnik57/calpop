@@ -173,6 +173,12 @@ class Sponsor(Base, TimestampMixin):
     # correspondence-workflow OneDrive naming conventions.
     sponsor_type: Mapped[str] = mapped_column(Text, nullable=False, default="individual")
     onedrive_folder_link: Mapped[Optional[str]] = mapped_column(Text)
+    # Soft-delete, not a hard delete -- a sponsor dropping is a real, expected
+    # event, and this keeps their contact info/OneDrive link/upload history
+    # instead of losing it. False = stop offering them in ScanLetterUpload's
+    # destination dropdown; existing Prisoner.sponsor_name matches and past
+    # uploads are untouched. Added 29Sep2026.
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class OneDriveConnection(Base, TimestampMixin):
