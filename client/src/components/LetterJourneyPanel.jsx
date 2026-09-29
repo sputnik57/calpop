@@ -5,9 +5,22 @@ import {
     ClipboardCheck, Printer, Send,
 } from 'lucide-react'
 
+// The backend always stores/serializes these as real UTC instants, but
+// without a trailing "Z"/offset (e.g. "2026-09-29T20:41:14", not
+// "...Z") -- new Date() on a timezone-less string parses it as *local*
+// time per the JS spec, which silently mislabels a UTC clock reading as
+// if it were already Pacific. Force it to be read as UTC by appending Z
+// when there's no timezone marker already; only then does toLocaleString/
+// getHours etc. correctly convert to the viewer's real local time.
+function parseUTC(iso) {
+    if (!iso) return null
+    const hasTz = /Z$|[+-]\d\d:?\d\d$/.test(iso)
+    return new Date(hasTz ? iso : iso + 'Z')
+}
+
 function fmt(iso) {
     if (!iso) return null
-    return new Date(iso).toLocaleString(undefined, {
+    return parseUTC(iso).toLocaleString(undefined, {
         month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
     })
 }
@@ -16,7 +29,7 @@ function fmt(iso) {
 // that input wants local time with no timezone/seconds, "YYYY-MM-DDTHH:mm".
 function toLocalInputValue(iso) {
     if (!iso) return ''
-    const d = new Date(iso)
+    const d = parseUTC(iso)
     const pad = n => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
