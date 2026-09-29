@@ -60,7 +60,16 @@ def classify_sponsor_name(sponsor_name: Optional[str]) -> str:
     normalized = (sponsor_name or "").strip()
     if not normalized:
         return "no_sponsor"
-    if normalized.lower().startswith("course"):
+    # "Course" was the original sentinel; "Rey G" is what it was renamed to
+    # 29Sep2026 (Rey: wanted his own name on the Sponsors tab / in stats,
+    # not the literal word "Course"). Checking both, not just the new one,
+    # because (a) two real Prisoner rows have extra hand-written notes
+    # appended after "Course" that were deliberately left un-renamed
+    # (UIH906, BMD784 -- see implementation_plan.md), and (b) the Excel
+    # roster's own "Sponsor" column source data hasn't been updated yet, so
+    # the next upload would still write "Course" for anyone not manually
+    # fixed in the sheet.
+    if normalized.lower().startswith(("course", "rey g")):
         return "no_sponsor"
 
     first_token = normalized.split(None, 1)[0].rstrip(",;:")
