@@ -179,13 +179,91 @@ def api_health_check():
 @app.get("/api/dashboard/program-summary")
 def get_program_summary():
     """
-    Get program summary statistics from Excel data.
-    Active sponsees = Stage 12, Unique sponsors = Stage 2-89.
+    Program summary stats -- rewritten 29Sep2026 to query Postgres directly
+    (was reading a stale in-memory Excel snapshot, see prior note in
+    implementation_plan.md), then reshaped same day into separate
+    `sponsors`/`sponsees` objects per Rey ("separate a card for
+    sponsors/sponsee count and sponsees that includes this breakdown").
+
+    `sponsees` uses the same three-bucket Stage taxonomy as the Prisoner
+    Directory's filter toggle (PrisonersPage.jsx STATUS_FILTERS): active
+    (Stage 10-12, actually corresponding), pending (Stage 1-9, still in
+    intake/contract/assignment), dropped (Stage 90+, terminal/exception).
+
+    `sponsors` counts the real Sponsor directory table (active/archived --
+    see the 29Sep2026 archive feature), NOT a distinct-string count of
+    Prisoner.sponsor_name values -- a name typo or variant spelling
+    (previously the "Course"/"Rey G" case) would silently split one real
+    sponsor into two in a string-based count; the actual roster table
+    doesn't have that problem.
     """
+    from db.models import Prisoner, Sponsor
+    from sqlalchemy import func
+
+    db = SessionLocal()
     try:
-        return excel_manager.get_sponsorship_stats()
+        sponsors_active = db.query(func.count(Sponsor.id)).filter(Sponsor.active.is_(True)).scalar()
+        sponsors_archived = db.query(func.count(Sponsor.id)).filter(Sponsor.active.is_(False)).scalar()
+
+        sponsees_active = db.query(func.count(Prisoner.cpid)).filter(Prisoner.stage.between(10, 12)).scalar()
+        sponsees_pending = db.query(func.count(Prisoner.cpid)).filter(Prisoner.stage.between(1, 9)).scalar()
+        sponsees_dropped = db.query(func.count(Prisoner.cpid)).filter(Prisoner.stage >= 90).scalar()
+        total_prisoners = db.query(func.count(Prisoner.cpid)).scalar()
+
+        # Per-sponsor version of the same active/pending/dropped split above --
+        # one grouped query, three conditional counts, rather than three
+        # separate group-by queries. Restricted to real Sponsor.name values
+        # (an exact-match inner join), NOT every distinct string that's ever
+        # appeared in Prisoner.sponsor_name -- that raw roster column is
+        # littered with status codes and free-text notes ("DROP", "CANX",
+        # "dropped as sponsee for no response, 4Apr2025...", see
+        # classify_sponsor_name()'s "ambiguous" bucket for the same problem
+        # elsewhere), which showed up as if they were sponsors when this
+        # first shipped un-filtered. The sponsees totals above still count
+        # everyone regardless of whether their sponsor_name matches a real
+        # directory entry; only this per-sponsor breakdown is scoped down.
+        breakdown_rows = (
+            db.query(
+                Sponsor.name,
+                func.count(Prisoner.cpid).filter(Prisoner.stage.between(10, 12)),
+                func.count(Prisoner.cpid).filter(Prisoner.stage >= 90),
+            )
+            .join(Prisoner, Prisoner.sponsor_name == Sponsor.name)
+            .group_by(Sponsor.name)
+            .all()
+        )
+        # Simplified 29Sep2026 per Rey ("too much info... first filter by
+        # 10-12 then just active/dropped") -- only sponsors with at least
+        # one active (Stage 10-12) sponsee are listed at all, and each shows
+        # just two numbers, not three. Pending is still in the aggregate
+        # `sponsees` totals above, just not broken out per sponsor here.
+        sponsors_breakdown = sorted(
+            [
+                {"name": name, "active": active, "dropped": dropped}
+                for name, active, dropped in breakdown_rows
+                if active
+            ],
+            key=lambda x: -x["active"],
+        )
+
+        return {
+            "sponsors": {
+                "active": sponsors_active,
+                "archived": sponsors_archived,
+                "total": sponsors_active + sponsors_archived,
+            },
+            "sponsees": {
+                "active": sponsees_active,
+                "pending": sponsees_pending,
+                "dropped": sponsees_dropped,
+                "total": total_prisoners,
+            },
+            "sponsors_breakdown": sponsors_breakdown,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 # Excel Management Endpoints
 @app.post("/api/excel/upload/preview")
