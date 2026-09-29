@@ -273,7 +273,15 @@ export function LetterJourneyPanel({ letterId }) {
                     onClear={() => setJourneyField('postmarked_at', null)}
                     saving={saving}
                 />
-                <AutoRow icon={Inbox} label="PO box pickup" sourceNote="Auto -- entered at scan intake" value={dates.picked_up_at} />
+                <EditableDateRow
+                    icon={Inbox}
+                    label="PO box pickup"
+                    sourceNote="Manual -- entered at scan intake, correctable here"
+                    value={dates.picked_up_at}
+                    onSet={(v) => setJourneyField('picked_up_at', v)}
+                    onClear={() => setJourneyField('picked_up_at', null)}
+                    saving={saving}
+                />
                 <AutoRow icon={ScanLine} label="Envelope scanned" sourceNote="Auto -- set the moment the envelope is scanned" value={dates.scanned_at} />
                 <AutoRow
                     icon={MapPin}

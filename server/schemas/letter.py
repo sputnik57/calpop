@@ -42,9 +42,13 @@ class LetterJourneyUpdate(BaseModel):
     OCR guess at scan time -- that guess is a starting point, not
     guaranteed right, so it's correctable the same way as the fully-manual
     fields below. letter_written_at has no auto path at all (no OCR guess
-    for the letter's own dateline, distinct from the envelope's postmark)."""
+    for the letter's own dateline, distinct from the envelope's postmark).
+    picked_up_at is already staff-entered at scan intake (date_picked_up_po
+    on LetterScanIngest) -- included here so it's correctable after the
+    fact too, not just set once at intake time."""
     postmarked_at: Optional[datetime] = None
     letter_written_at: Optional[datetime] = None
+    picked_up_at: Optional[datetime] = None
     informed_sponsor_at: Optional[datetime] = None
     sponsor_finished_at: Optional[datetime] = None
     admin_reviewed_at: Optional[datetime] = None
