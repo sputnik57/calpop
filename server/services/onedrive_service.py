@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from config import Settings
 from db.models import OneDriveConnection
-from services.storage_service import StorageService, StorageItem
+from services.storage_service import StorageService, StorageItem, VisitStats
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
@@ -230,3 +230,28 @@ class OneDriveStorageService(StorageService):
         )
         resp.raise_for_status()
         return resp.content
+
+    def get_visit_stats(self, ref: str) -> Optional[VisitStats]:
+        # analytics/allTime -- live-verified 29Sep2026 against a real,
+        # pre-existing sponsor file (nonzero actionCount). Each sponsor's
+        # OneDrive link is unique to them (Rey assigns one login per
+        # sponsor), so any count here is unambiguously that sponsor's own
+        # traffic. Known gap, also verified live the same day: this is NOT
+        # real-time -- a genuine print/view from the mobile app did not
+        # register within a 4-minute poll, so treat this as a background
+        # usage signal to check on demand, never as proof a specific visit
+        # just happened.
+        resp = httpx.get(
+            f"{GRAPH_BASE}/me/drive/items/{ref}/analytics/allTime",
+            headers=self._headers(),
+            timeout=30.0,
+        )
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        access = resp.json().get("access", {})
+        return VisitStats(
+            action_count=access.get("actionCount", 0),
+            actor_count=access.get("actorCount", 0),
+            time_spent_seconds=access.get("timeSpentInSeconds", 0),
+        )

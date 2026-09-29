@@ -262,6 +262,9 @@ class Letter(Base, TimestampMixin):
         foreign_keys="[LetterVersion.letter_id]",
     )
     dates: Mapped[Optional["LetterDates"]] = relationship(back_populates="letter", uselist=False, cascade="all, delete-orphan")
+    reminders: Mapped[List["LetterReminder"]] = relationship(
+        back_populates="letter", cascade="all, delete-orphan", order_by="LetterReminder.reminded_at"
+    )
     assignments: Mapped[List["Assignment"]] = relationship(back_populates="letter", cascade="all, delete-orphan")
     submissions: Mapped[List["Submission"]] = relationship(back_populates="letter", cascade="all, delete-orphan")
     ocr_artifacts: Mapped[List["OCRArtifact"]] = relationship(back_populates="letter", cascade="all, delete-orphan")
@@ -299,6 +302,22 @@ class LetterStatusHistory(Base):
 
 
 class LetterDates(Base):
+    """
+    Extended 29Sep2026 with the rest of Rey's real paper "Letter Journey"
+    checklist (13 touchpoints, see implementation_plan.md) -- everything
+    from "informed sponsor" through "mailed" was previously untracked once
+    a letter left the intake/scan stage. Split three ways per Rey's own
+    per-touchpoint decisions that day:
+      - auto, from an existing system event: address_change_confirmed
+        (scan-confirm), uploaded_at/sponsor_reply_item_id (OneDrive upload)
+      - auto, best-effort, on-demand: sponsor_visit_* (OneDrive analytics on
+        the reply doc -- live-verified real but NOT real-time; see
+        OneDriveStorageService.get_visit_stats)
+      - manual, entered by Rey (all explicitly "future: could be Telnyx" per
+        Rey, not built now): informed_sponsor_at, sponsor_finished_at,
+        admin_reviewed_at, printed_at, mailed_at. Reminder dates are a
+        separate LetterReminder table (plural, a log not a single field).
+    """
     letter_id: Mapped[int] = mapped_column(ForeignKey("letter.id"), primary_key=True)
     scanned_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     picked_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -307,7 +326,51 @@ class LetterDates(Base):
     response_submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Auto -- set at scan-confirm (LetterService.create_letter_from_ocr)
+    address_change_confirmed: Mapped[Optional[bool]] = mapped_column(Boolean)
+
+    # Auto -- set when upload_redacted_to_sponsor_onedrive actually files
+    # the letter into the sponsor's folder. sponsor_reply_item_id is the
+    # OneDrive item id of the blank reply doc filed alongside it -- the
+    # thing the sponsor actually opens/edits, and the target for the
+    # visit-stat check below (see resolve_upload_destination: folder_path
+    # is per-exchange, so this id is specific to this one letter).
+    uploaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    sponsor_reply_item_id: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Auto, best-effort, on-demand snapshot from OneDriveStorageService
+    # .get_visit_stats(sponsor_reply_item_id) -- None/0 until first checked.
+    sponsor_visit_count: Mapped[Optional[int]] = mapped_column(Integer)
+    sponsor_visit_actor_count: Mapped[Optional[int]] = mapped_column(Integer)
+    sponsor_visit_seconds: Mapped[Optional[int]] = mapped_column(Integer)
+    sponsor_visit_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Manual, entered by Rey.
+    informed_sponsor_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    sponsor_finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    admin_reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    printed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    mailed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
     letter: Mapped["Letter"] = relationship(back_populates="dates")
+
+
+class LetterReminder(Base):
+    """
+    "Date(s) remind sponsor" from Rey's paper checklist -- plural on
+    purpose (a running log of reminder nudges, not one field), manually
+    entered by Rey. Added 29Sep2026 alongside the rest of LetterDates'
+    journey-tracking extension. Rey noted this touchpoint could move to an
+    automated Telnyx SMS system in the future -- not built now.
+    """
+    id: Mapped[int] = mapped_column(primary_key=True)
+    letter_id: Mapped[int] = mapped_column(ForeignKey("letter.id"), nullable=False)
+    reminded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    letter: Mapped["Letter"] = relationship(back_populates="reminders")
 
 
 class OCRArtifact(Base, TimestampMixin):

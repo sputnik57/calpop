@@ -13,12 +13,16 @@ from auth.models import UserContext
 from config import get_settings
 from schemas.letter import (
     LetterCreate,
+    LetterJourneyUpdate,
     LetterOut,
+    LetterReminderIn,
+    LetterReminderOut,
     LetterScanIngest,
     LetterStatusHistoryOut,
     LetterUpdate,
     RedactedUploadRequest,
     RedactedUploadResult,
+    SponsorVisitStatsOut,
     UploadDestinationPreview,
     TranslateImageRequest,
     TranslateImageResult,
@@ -291,6 +295,89 @@ def get_letter_status_history(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return service.get_status_history(letter_id)
+
+
+@router.patch("/{letter_id}/journey", response_model=LetterOut)
+def update_letter_journey(
+    letter_id: int,
+    updates: LetterJourneyUpdate,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Manual half of the Letter Journey checklist (informed/finished/
+    reviewed/printed/mailed) -- see LetterService.update_journey."""
+    service = _service(db)
+    try:
+        return service.update_journey(letter_id, updates)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{letter_id}/journey/check-visits", response_model=SponsorVisitStatsOut)
+def check_letter_sponsor_visits(
+    letter_id: int,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    On-demand live check of the "sponsor writing letter" touchpoint --
+    queries the active storage backend for real visit stats on this
+    letter's reply doc. See LetterService.check_sponsor_visits and
+    OneDriveStorageService.get_visit_stats for what this does and doesn't
+    guarantee (real but not real-time; unsupported on local storage or
+    before upload).
+    """
+    service = _service(db)
+    try:
+        return service.check_sponsor_visits(letter_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/{letter_id}/reminders", response_model=List[LetterReminderOut])
+def list_letter_reminders(
+    letter_id: int,
+    user_context: UserContext = Depends(require_admin_or_sponsor),
+    db: Session = Depends(get_db),
+):
+    """"Date(s) remind sponsor" log -- plural, so a list of entries rather than one field."""
+    service = _service(db)
+    try:
+        service.get_letter(letter_id)  # existence check
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return service.list_reminders(letter_id)
+
+
+@router.post("/{letter_id}/reminders", response_model=LetterReminderOut)
+def add_letter_reminder(
+    letter_id: int,
+    payload: LetterReminderIn,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+    db_user=Depends(get_db_user),
+):
+    service = _service(db)
+    try:
+        return service.add_reminder(
+            letter_id, payload.reminded_at, payload.note, created_by=db_user.id if db_user else None
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.delete("/{letter_id}/reminders/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_letter_reminder(
+    letter_id: int,
+    reminder_id: int,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    service = _service(db)
+    try:
+        service.delete_reminder(letter_id, reminder_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.post("/translate-page", response_model=TranslateImageResult)

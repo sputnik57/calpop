@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Save, ArrowLeft, Loader2 } from 'lucide-react'
+import { LetterJourneyPanel } from '../components/LetterJourneyPanel'
 
 export function LetterEditor() {
     const { id } = useParams()
@@ -163,6 +164,12 @@ export function LetterEditor() {
                     </div>
                 </form>
             </div>
+
+            {!isNew && (
+                <div className="mt-6">
+                    <LetterJourneyPanel letterId={id} />
+                </div>
+            )}
         </div>
     )
 }

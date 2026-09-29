@@ -24,6 +24,22 @@ from typing import List, Optional
 
 
 @dataclass
+class VisitStats:
+    """Best-effort aggregate view/visit count for one file, if the backend
+    tracks it. `action_count` is total access events (views/downloads,
+    including repeat visits by the same person), `actor_count` distinct
+    people, `time_spent_seconds` cumulative. Live-verified against OneDrive
+    (Microsoft Graph's analytics/allTime endpoint) 29Sep2026 -- real nonzero
+    data on a pre-existing sponsor file. NOT real-time: a live poll during
+    that same session showed a real print/view action from the mobile
+    OneDrive app did not register within 4 minutes, so this is a background
+    usage signal to check on demand, not something to alert on immediately."""
+    action_count: int
+    actor_count: int
+    time_spent_seconds: int
+
+
+@dataclass
 class StorageItem:
     """One entry returned by list_folder -- deliberately backend-agnostic.
 
@@ -68,6 +84,13 @@ class StorageService(ABC):
     def download_file(self, ref: str) -> bytes:
         """Fetch the content behind an opaque ref returned by upload_file
         or list_folder."""
+
+    def get_visit_stats(self, ref: str) -> Optional[VisitStats]:
+        """Best-effort visit/view count for `ref`, if this backend tracks
+        it. Not abstract -- most backends (LocalStorageService) have no such
+        concept and just return None; callers must treat None as 'no data
+        available', not zero visits. Overridden by OneDriveStorageService."""
+        return None
 
 
 class LocalStorageService(StorageService):

@@ -14,8 +14,58 @@ class LetterDatesOut(BaseModel):
     response_submitted_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
 
+    address_change_confirmed: Optional[bool] = None
+    uploaded_at: Optional[datetime] = None
+    sponsor_reply_item_id: Optional[str] = None
+    sponsor_visit_count: Optional[int] = None
+    sponsor_visit_actor_count: Optional[int] = None
+    sponsor_visit_seconds: Optional[int] = None
+    sponsor_visit_checked_at: Optional[datetime] = None
+    informed_sponsor_at: Optional[datetime] = None
+    sponsor_finished_at: Optional[datetime] = None
+    admin_reviewed_at: Optional[datetime] = None
+    printed_at: Optional[datetime] = None
+    mailed_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
+
+
+class LetterJourneyUpdate(BaseModel):
+    """PATCH body for the manual "Letter Journey" touchpoints -- the ones
+    Rey enters himself (see LetterDates' docstring for which). Every field
+    is independently optional/nullable: the frontend sends only the one
+    field being set, and an explicit null clears a previously-set date."""
+    informed_sponsor_at: Optional[datetime] = None
+    sponsor_finished_at: Optional[datetime] = None
+    admin_reviewed_at: Optional[datetime] = None
+    printed_at: Optional[datetime] = None
+    mailed_at: Optional[datetime] = None
+
+
+class LetterReminderIn(BaseModel):
+    reminded_at: Optional[datetime] = Field(None, description="Defaults to now if omitted.")
+    note: Optional[str] = None
+
+
+class LetterReminderOut(BaseModel):
+    id: int
+    letter_id: int
+    reminded_at: datetime
+    note: Optional[str] = None
+    created_by: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SponsorVisitStatsOut(BaseModel):
+    sponsor_visit_count: Optional[int] = None
+    sponsor_visit_actor_count: Optional[int] = None
+    sponsor_visit_seconds: Optional[int] = None
+    sponsor_visit_checked_at: Optional[datetime] = None
+    supported: bool = Field(..., description="False when the active storage backend doesn't track visits at all (e.g. local disk) or this letter hasn't been uploaded yet -- distinct from a genuine zero-visits result.")
 
 
 class LetterStatusHistoryOut(BaseModel):

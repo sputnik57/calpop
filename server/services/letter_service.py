@@ -12,6 +12,7 @@ from sqlalchemy import desc
 from db.models import (
     Letter,
     LetterDates,
+    LetterReminder,
     LetterStatusHistory,
     LetterVersion,
     OCRArtifact,
@@ -21,6 +22,7 @@ from db.models import (
 )
 from schemas.letter import (
     LetterCreate,
+    LetterJourneyUpdate,
     LetterUpdate,
 )
 
@@ -367,6 +369,14 @@ class LetterService:
             scanned_at=pacific_now,
             postmarked_at=extract_postmark_date_guess(ocr_text),
             picked_up_at=date_picked_up_po,
+            # Auto -- "address change y/n" from the paper checklist. True
+            # whenever a corrected address was actually entered at
+            # scan-confirm (see step 1b above); not asserted from
+            # address_verified alone, since confirming the on-file address
+            # as-is is not a change.
+            address_change_confirmed=bool(
+                corrected_address or corrected_city or corrected_state or corrected_zip
+            ),
         )
         self.db.add(dates)
 
@@ -644,6 +654,15 @@ class LetterService:
         letter.redacted_file_ref = uploaded_refs[0]["ref"] if uploaded_refs else None
         letter.status = "redacted"
         self._log_status(letter.id, "redacted", changed_by=changed_by, note=f"Uploaded to {folder_path}")
+
+        # Journey tracking, auto: "upload to sponsor's portal" touchpoint,
+        # plus the reply doc's item id as the target for later visit-stat
+        # checks (see check_sponsor_visits). letter.dates always exists by
+        # this point (created at scan-confirm intake).
+        if letter.dates:
+            letter.dates.uploaded_at = datetime.utcnow()
+            letter.dates.sponsor_reply_item_id = reply_ref
+
         self.db.commit()
 
         return {
@@ -651,3 +670,99 @@ class LetterService:
             "uploaded_files": uploaded_refs,
             "reply_doc": {"filename": reply_filename, "ref": reply_ref},
         }
+
+    def update_journey(self, letter_id: int, updates: LetterJourneyUpdate) -> Letter:
+        """The manual half of the Letter Journey checklist -- Rey entering
+        informed/finished/reviewed/printed/mailed dates himself. Only
+        fields actually present in the request are touched (unset ones
+        left alone); an explicitly-sent null clears that date."""
+        letter = self.get_letter(letter_id)
+        if not letter.dates:
+            letter.dates = LetterDates(letter_id=letter.id)
+            self.db.add(letter.dates)
+
+        for field, value in updates.dict(exclude_unset=True).items():
+            setattr(letter.dates, field, value)
+
+        self.db.commit()
+        return self.get_letter(letter_id)
+
+    def check_sponsor_visits(self, letter_id: int) -> Dict[str, Any]:
+        """On-demand refresh of the "sponsor writing letter" touchpoint --
+        queries the active storage backend for real visit/view stats on the
+        reply doc uploaded for this letter (see get_visit_stats's docstring
+        for what it does and doesn't guarantee). Returns supported=False,
+        not an error, when there's nothing to check yet (no upload) or the
+        backend doesn't track this (local storage) -- distinct from a real
+        zero-visits result."""
+        from config import get_settings
+        from services.storage_service import get_storage_service
+
+        letter = self.get_letter(letter_id)
+        item_id = letter.dates.sponsor_reply_item_id if letter.dates else None
+        if not item_id:
+            return {
+                "sponsor_visit_count": None,
+                "sponsor_visit_actor_count": None,
+                "sponsor_visit_seconds": None,
+                "sponsor_visit_checked_at": None,
+                "supported": False,
+            }
+
+        settings = get_settings()
+        storage = get_storage_service(settings, self.db)
+        stats = storage.get_visit_stats(item_id)
+        if stats is None:
+            return {
+                "sponsor_visit_count": None,
+                "sponsor_visit_actor_count": None,
+                "sponsor_visit_seconds": None,
+                "sponsor_visit_checked_at": None,
+                "supported": False,
+            }
+
+        letter.dates.sponsor_visit_count = stats.action_count
+        letter.dates.sponsor_visit_actor_count = stats.actor_count
+        letter.dates.sponsor_visit_seconds = stats.time_spent_seconds
+        letter.dates.sponsor_visit_checked_at = datetime.utcnow()
+        self.db.commit()
+
+        return {
+            "sponsor_visit_count": stats.action_count,
+            "sponsor_visit_actor_count": stats.actor_count,
+            "sponsor_visit_seconds": stats.time_spent_seconds,
+            "sponsor_visit_checked_at": letter.dates.sponsor_visit_checked_at,
+            "supported": True,
+        }
+
+    def add_reminder(self, letter_id: int, reminded_at: Optional[datetime], note: Optional[str], created_by: Optional[int]) -> LetterReminder:
+        self.get_letter(letter_id)  # existence check
+        reminder = LetterReminder(
+            letter_id=letter_id,
+            reminded_at=reminded_at or datetime.utcnow(),
+            note=note,
+            created_by=created_by,
+        )
+        self.db.add(reminder)
+        self.db.commit()
+        self.db.refresh(reminder)
+        return reminder
+
+    def list_reminders(self, letter_id: int) -> List[LetterReminder]:
+        return (
+            self.db.query(LetterReminder)
+            .filter(LetterReminder.letter_id == letter_id)
+            .order_by(LetterReminder.reminded_at)
+            .all()
+        )
+
+    def delete_reminder(self, letter_id: int, reminder_id: int) -> None:
+        reminder = (
+            self.db.query(LetterReminder)
+            .filter(LetterReminder.id == reminder_id, LetterReminder.letter_id == letter_id)
+            .first()
+        )
+        if not reminder:
+            raise ValueError(f"Reminder {reminder_id} not found on letter {letter_id}")
+        self.db.delete(reminder)
+        self.db.commit()
