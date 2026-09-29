@@ -11,7 +11,8 @@ const NAV_ITEMS = [
         children: [
             { label: 'Letter Writing', to: '/inbox', match: (path) => path.startsWith('/inbox') },
             { label: 'Translation', to: '/translate', match: (path) => path.startsWith('/translate') },
-            { label: 'Letter Mgt', to: '/letters', match: (path) => path.startsWith('/letters') },
+            { label: 'Letter Mgt', to: '/letters', match: (path) => path.startsWith('/letters') && !path.startsWith('/letters/upload-to-sponsor') },
+            { label: 'Upload to Sponsor', to: '/letters/upload-to-sponsor', match: (path) => path.startsWith('/letters/upload-to-sponsor') },
         ],
     },
     {

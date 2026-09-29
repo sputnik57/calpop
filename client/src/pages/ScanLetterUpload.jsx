@@ -563,7 +563,9 @@ export function ScanLetterUpload() {
                                     <option value="">
                                         {preview ? `Use match: ${preview.sponsor_name} (${preview.sponsor_pseudonym})` : 'Use automatic match (currently failing)'}
                                     </option>
-                                    {sponsors.map(s => (
+                                    {/* Archived sponsors (dropped) are excluded here -- still exist for
+                                        past-upload history, just not offered as a destination going forward. */}
+                                    {sponsors.filter(s => s.active).map(s => (
                                         <option key={s.id} value={s.id}>{s.name} ({s.pseudonym || 'no pseudonym'})</option>
                                     ))}
                                 </select>

@@ -47,6 +47,14 @@ export function IntakeArea() {
         : null
     const confirmedCandidate = confirmedFromCandidates || confirmedFromRoster
 
+    // "Course" is the roster's sentinel for "Rey handles this himself, no
+    // external sponsor" (see Prisoner.sponsor_name's model comment) -- not a
+    // real person's name, so it (and blank) still means "needs a sponsor
+    // assigned." Looked up from the full roster, not confirmedCandidate
+    // itself, since the OCR-matched candidate shape doesn't carry sponsor_name.
+    const existingSponsorName = confirmedCpid && rosterByCpid[confirmedCpid]?.sponsor_name
+    const hasRealSponsor = existingSponsorName && existingSponsorName !== 'Course'
+
     // Routing (added 22Aug2026) -- replaces the old automatic
     // sponsor_name-based routing entirely, per an explicit decision: staff
     // now always pick the next queue by hand instead of the system
@@ -250,7 +258,7 @@ export function IntakeArea() {
 
                         {/* Analysis Panel */}
                         <div className="flex flex-col gap-4 overflow-hidden">
-                            <div className="bg-white rounded-xl border border-calpop-navy/15 p-5 flex flex-col h-full overflow-hidden shadow-sm">
+                            <div className="bg-white rounded-xl border border-calpop-navy/15 p-5 flex flex-col h-full overflow-y-auto shadow-sm">
                                 <div className="flex items-center justify-between mb-4 border-b border-calpop-navy/15 pb-3">
                                     <h4 className="text-xs font-bold text-calpop-blue uppercase tracking-widest">Extracted Intelligence</h4>
                                     {analysis && (
@@ -266,7 +274,7 @@ export function IntakeArea() {
                                     )}
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto font-mono text-sm text-calpop-ink bg-calpop-panel p-4 rounded-lg border border-calpop-navy/15 whitespace-pre-wrap leading-relaxed">
+                                <div className="min-h-[200px] max-h-[45vh] overflow-y-auto font-mono text-sm text-calpop-ink bg-calpop-panel p-4 rounded-lg border border-calpop-navy/15 whitespace-pre-wrap leading-relaxed">
                                     {analysis?.text || "Analyzing text structure..."}
                                 </div>
 
@@ -400,7 +408,7 @@ export function IntakeArea() {
                                                         </div>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setAddressVerified(true)}
+                                                            onClick={() => { setAddressVerified(true); setAddressEditing(false) }}
                                                             disabled={!correctedAddress.address}
                                                             className="w-full py-2 bg-calpop-accent hover:brightness-95 disabled:opacity-40 text-white rounded-lg text-sm font-bold"
                                                         >
@@ -495,7 +503,9 @@ export function IntakeArea() {
                                             onChange={() => setRoutingChoice('queued_for_letter_scan')}
                                             className="w-4 h-4"
                                         />
-                                        <span className="text-sm text-calpop-ink">Assign Sponsor Queue</span>
+                                        <span className="text-sm text-calpop-ink">
+                                            {hasRealSponsor ? `Route to Sponsor (${existingSponsorName})` : 'Assign Sponsor Queue'}
+                                        </span>
                                     </label>
                                 </div>
                             </div>

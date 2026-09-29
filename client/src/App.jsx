@@ -11,6 +11,7 @@ import { EnvelopeMgtPage } from './pages/EnvelopeMgtPage'
 import { SponsorsPage } from './pages/SponsorsPage'
 import { ScanLetterUpload } from './pages/ScanLetterUpload'
 import { TranslateLetter } from './pages/TranslateLetter'
+import { UploadToSponsorPage } from './pages/UploadToSponsorPage'
 
 function App() {
     return (
@@ -24,6 +25,7 @@ function App() {
                     <Route path="letters/new" element={<LetterEditor />} />
                     <Route path="letters/:id" element={<LetterEditor />} />
                     <Route path="letters/:id/scan" element={<ScanLetterUpload />} />
+                    <Route path="letters/upload-to-sponsor" element={<UploadToSponsorPage />} />
                     <Route path="translate" element={<TranslateLetter />} />
                     <Route path="scantron" element={<IntakeArea />} />
                     <Route path="envelope" element={<EnvelopeMgtPage />} />
