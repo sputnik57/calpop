@@ -95,6 +95,18 @@ const ALL_COLUMNS = [
     { key: 'literature_only', label: 'Literature Only', render: p => p.literature_only ? 'Yes' : 'No' },
 ]
 
+// Status filter toggle (added 29Sep2026, per Rey) -- three buckets matching
+// STAGE_LEGEND/docs/status_workflow.md's taxonomy: 1-9 = still working
+// through intake/contract/assignment before actual letter exchange starts;
+// 10-12 = actually corresponding; 90+ = terminal/exception (dropped, went
+// silent, etc). A blank/null Stage matches none of the three, only "All".
+const STATUS_FILTERS = [
+    { key: 'all', label: 'All', test: () => true },
+    { key: 'active', label: 'Active (10-12)', test: p => p.stage != null && p.stage >= 10 && p.stage <= 12 },
+    { key: 'pending', label: 'Pending (1-9)', test: p => p.stage != null && p.stage >= 1 && p.stage <= 9 },
+    { key: 'dropped', label: 'Dropped (90+)', test: p => p.stage != null && p.stage >= 90 },
+]
+
 const DEFAULT_VISIBLE_COLUMNS = ['sponsor_name', 'facility', 'housing', 'safety_classification', 'stage', 'letters_received_count']
 const COLUMNS_STORAGE_KEY = 'calpop_prisoners_visible_columns'
 
@@ -144,7 +156,8 @@ const DATE_FIELDS = new Set(['date_of_contract', 'date_sponsor_assigned', 'bph_d
 function UpdatePersonPanel({ prisoner, onDone }) {
     const [form, setForm] = useState(() =>
         Object.fromEntries(EDITABLE_FIELDS.map(([key]) => {
-            // Numeric fields (stage, letter_exchange_count, step_received_count)
+            // Numeric fields (stage, letter_exchange_count -- step_received_count is
+            // free text as of 29Sep2026, not numeric)
             // come back from GET /api/prisoners as real JSON numbers, not
             // strings -- `raw || ''` doesn't stringify those, so an untouched
             // numeric field stayed a raw number in form state and got PATCHed
@@ -271,6 +284,7 @@ export function PrisonersPage() {
     const columnPickerRef = useRef(null)
     const [showStageLegend, setShowStageLegend] = useState(false)
     const stageLegendRef = useRef(null)
+    const [statusFilter, setStatusFilter] = useState('all')
 
     useEffect(() => {
         localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns))
@@ -338,10 +352,16 @@ export function PrisonersPage() {
 
     useEffect(() => { loadPrisoners() }, [loadPrisoners])
 
+    const activeStatusTest = STATUS_FILTERS.find(f => f.key === statusFilter).test
+    // Counts computed from the full roster (not search-filtered), so the
+    // toggle's own numbers stay stable while typing in the search box.
+    const statusCounts = Object.fromEntries(STATUS_FILTERS.map(f => [f.key, prisoners.filter(f.test).length]))
+
     const filtered = prisoners.filter(p =>
-        p.cpid?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        activeStatusTest(p) &&
+        (p.cpid?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.last_name?.toLowerCase().includes(searchTerm.toLowerCase()))
     )
 
     const sorted = sortKey ? [...filtered].sort((a, b) => {
@@ -414,15 +434,36 @@ export function PrisonersPage() {
             )}
 
             <div className="bg-white p-3 rounded-xl border border-calpop-navy/15 shadow-sm flex items-center justify-between gap-3">
-                <div className="relative w-[36rem]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-calpop-navy" />
-                    <input
-                        type="text"
-                        placeholder="Search CPID or name..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg pl-9 pr-3 py-2 text-sm text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all font-mono"
-                    />
+                <div className="flex items-center gap-3">
+                    <div className="relative w-56">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-calpop-navy" />
+                        <input
+                            type="text"
+                            placeholder="Search CPID or name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg pl-9 pr-3 py-2 text-sm text-calpop-ink focus:outline-none focus:border-calpop-blue transition-all font-mono"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        {STATUS_FILTERS.map(f => (
+                            <button
+                                key={f.key}
+                                onClick={() => setStatusFilter(f.key)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                                    statusFilter === f.key
+                                        ? 'bg-calpop-blue text-white'
+                                        : 'text-calpop-navy hover:bg-calpop-panel'
+                                }`}
+                            >
+                                {f.label}
+                                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${statusFilter === f.key ? 'bg-white/20' : 'bg-calpop-panel'}`}>
+                                    {statusCounts[f.key]}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <div className="relative" ref={columnPickerRef}>
