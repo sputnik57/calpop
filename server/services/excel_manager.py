@@ -394,6 +394,25 @@ class ExcelMapManager:
             val = row.get(col)
             return str(val).strip() if pd.notna(val) else None
 
+        def date_field(col: str) -> Optional[str]:
+            """Date-only columns (date_of_contract, date_sponsor_assigned,
+            bph_date) -- these are plain string DB columns, not real Date
+            columns, so a raw str(val) matters. pandas reads an Excel date
+            cell as a Timestamp, whose str() always appends ' 00:00:00' even
+            with no time-of-day set -- date_of_contract stored from a
+            PREVIOUS upload/manual entry as a bare 'YYYY-MM-DD' string then
+            never matched the freshly-read 'YYYY-MM-DD 00:00:00', so every
+            date field on every unchanged row showed up as 'changed' in the
+            diff (found 29Sep2026, real upload, all three date fields).
+            Format as plain YYYY-MM-DD; fall back to field()'s behavior for
+            anything pandas didn't parse as a real date/timestamp."""
+            val = row.get(col)
+            if pd.isna(val):
+                return None
+            if hasattr(val, 'strftime'):
+                return val.strftime('%Y-%m-%d')
+            return str(val).strip()
+
         # Safety classification: same fail-safe as resolve_name_from_cpid --
         # blank/'N' -> safe, anything else (including unrecognized) -> unsafe.
         unsafe_flag = (field('Unsafe?') or '').strip().upper()
@@ -438,11 +457,11 @@ class ExcelMapManager:
             'stage': int_field('Stage'),
             'cdcr_db_verified': field('CDCR db verif'),
             'contract_status': field('contract'),
-            'date_of_contract': field('Date of contract'),
+            'date_of_contract': date_field('Date of contract'),
             'needs_green_book': field('Needs Green book?'),
             'language': field('language'),
             'review_notes': field('Review notes'),
-            'date_sponsor_assigned': field('Date Sponsor assigned'),
+            'date_sponsor_assigned': date_field('Date Sponsor assigned'),
             'letter_exchange_count': int_field('letter exchange (received only)'),
             # Header renamed "Step (received only)" -> "Current Step" 20Sep2026
             # (it's the step the sponsee is working on -- see the model comment).
@@ -450,7 +469,7 @@ class ExcelMapManager:
             # a missing column reads as blank here, which would otherwise silently
             # wipe every person's step on upload.
             'step_received_count': int_field('Current Step' if 'Current Step' in row else 'Step (received only)'),
-            'bph_date': field('BPH DATE'),
+            'bph_date': date_field('BPH DATE'),
         }
 
     def diff_with_postgres_prisoners(self, db: Session) -> Dict[str, Any]:
