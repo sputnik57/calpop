@@ -106,7 +106,15 @@ class MatchingService:
                 "cdcr_number": cdcr or None,
                 "first_name": fname or None,
                 "last_name": lname or None,
-                "facility": str(row.get("housing", "") or "") or None,
+                # 'housing' (cell/unit, e.g. "D-D-3-201L") and 'facility'/
+                # 'Prison' (the actual facility name) are different roster
+                # columns -- this used to conflate them under "facility"
+                # (same bug already fixed once in excel_manager.py's sync
+                # path, missed here; fixed 04Oct2026 after it showed a real
+                # scan's housing as blank in ScantronStation's verification
+                # panel despite the roster having it on file).
+                "facility": str(row.get("facility", "") or row.get("Prison", "") or "") or None,
+                "housing": str(row.get("housing", "") or "") or None,
                 "address": str(row.get("address", "") or "") or None,
                 "city": str(row.get("city", "") or "") or None,
                 "state": str(row.get("state", "") or "") or None,
@@ -139,7 +147,7 @@ class MatchingService:
         for p in db.query(Prisoner).all():
             name = f"{p.first_name or ''} {p.last_name or ''}"
             address_blob = " ".join(filter(None, [p.address, p.city, p.state, p.zip]))
-            record_blob = f"{name} {p.facility or ''} {address_blob}".upper()
+            record_blob = f"{name} {p.facility or ''} {p.housing or ''} {address_blob}".upper()
 
             text_score = fuzz.token_set_ratio(query_upper, record_blob) if record_blob.strip() else 0
             id_score = 0
@@ -161,6 +169,7 @@ class MatchingService:
                 "first_name": p.first_name,
                 "last_name": p.last_name,
                 "facility": p.facility,
+                "housing": p.housing,
                 "address": p.address,
                 "city": p.city,
                 "state": p.state,
