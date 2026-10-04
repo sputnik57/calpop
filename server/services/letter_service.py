@@ -185,6 +185,8 @@ class LetterService:
         author_id: int,
         prisoner_cpid: Optional[str] = None,
         date_picked_up_po: Optional[datetime] = None,
+        postmarked_at: Optional[datetime] = None,
+        letter_written_at: Optional[datetime] = None,
         routing_status_override: Optional[str] = None,
         address_verified: Optional[bool] = None,
         corrected_address: Optional[str] = None,
@@ -374,8 +376,14 @@ class LetterService:
         dates = LetterDates(
             letter_id=letter.id,
             scanned_at=pacific_now,
-            postmarked_at=extract_postmark_date_guess(ocr_text),
+            # Manual entry at scan-confirm (added 04Oct2026) takes priority
+            # over the OCR best-effort guess when staff actually provide
+            # one; falls back to the guess otherwise, same as before.
+            postmarked_at=postmarked_at if postmarked_at is not None else extract_postmark_date_guess(ocr_text),
             picked_up_at=date_picked_up_po,
+            # No OCR guess for this one -- the letter's own dateline isn't
+            # visible on the envelope being scanned here at all.
+            letter_written_at=letter_written_at,
             # Auto -- "address change y/n" from the paper checklist. True
             # whenever a corrected address OR housing was actually entered
             # at scan-confirm (see step 1b above); not asserted from

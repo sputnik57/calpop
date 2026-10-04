@@ -127,6 +127,12 @@ class LetterScanIngest(BaseModel):
     date_picked_up_po: Optional[datetime] = Field(
         None, description="Manually entered: when staff physically picked this up from the PO box (distinct from the postmark date)."
     )
+    postmarked_at: Optional[datetime] = Field(
+        None, description="Manual entry/correction of the envelope's postmark date at scan time. Takes priority over the OCR best-effort guess (extract_postmark_date_guess) when provided; the OCR guess is still used as a fallback if this is left blank, same as before."
+    )
+    letter_written_at: Optional[datetime] = Field(
+        None, description="The date written on the letter itself (its dateline) -- distinct from the envelope's postmark, no OCR guess exists for this one. Added 04Oct2026 so it can be entered at scan-confirm time, alongside the other letter dates, rather than only after the fact via the Letter Journey panel."
+    )
     routing_status_override: Optional[str] = Field(
         None, description="'queued_for_writing' or 'queued_for_letter_scan'. As of 22Aug2026 this is the PRIMARY routing mechanism -- ScantronStation.jsx always sends an explicit staff choice (Letter Writing Queue vs Assign Sponsor Queue), replacing the old automatic sponsor_name-based inference. That automatic path (services/letter_service.resolve_envelope_routing_status) still runs as a fallback when this is omitted, including its ambiguous-sponsor 409."
     )

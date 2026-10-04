@@ -115,6 +115,8 @@ def ingest_scanned_letter(
             author_id=auth_id,
             prisoner_cpid=payload.prisoner_cpid,
             date_picked_up_po=payload.date_picked_up_po,
+            postmarked_at=payload.postmarked_at,
+            letter_written_at=payload.letter_written_at,
             routing_status_override=payload.routing_status_override,
             address_verified=payload.address_verified,
             corrected_address=payload.corrected_address,

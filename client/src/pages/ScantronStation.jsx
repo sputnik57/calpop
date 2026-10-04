@@ -4,6 +4,18 @@ import { Camera, Loader2, X, Eye, CheckCircle2, Inbox, Users } from 'lucide-reac
 import { RedactionCaptureStage } from '../components/RedactionCaptureStage'
 import { usePrisonerDirectory } from '../hooks/usePrisonerDirectory'
 
+// A plain <input type="date"> value ("YYYY-MM-DD") has no time-of-day --
+// sending it as midnight UTC (the naive new Date(str).toISOString()
+// approach) can shift it to the previous calendar day once converted back
+// to local time for display (see LetterJourneyPanel.jsx's parseUTC fix for
+// the same underlying issue). Anchoring at local noon avoids that in any
+// real-world timezone.
+function dateInputToNoonISO(dateStr) {
+    if (!dateStr) return null
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(y, m - 1, d, 12, 0, 0).toISOString()
+}
+
 export function IntakeArea() {
     const navigate = useNavigate()
 
@@ -26,6 +38,18 @@ export function IntakeArea() {
     const [addressVerified, setAddressVerified] = useState(false)
     const [addressEditing, setAddressEditing] = useState(false)
     const [correctedAddress, setCorrectedAddress] = useState({ address: '', city: '', state: '', zip: '', housing: '' })
+
+    // Letter dates (added 04Oct2026, Rey processing real letters): entered
+    // here at scan-confirm time, before the record ever hits the vault,
+    // rather than only correctable after the fact via the Letter Journey
+    // panel. All three are plain date pickers -- date_picked_up_po and
+    // postmarked_at already existed server-side (postmark previously had
+    // no manual-entry path at all, only an OCR guess); letter_written_at
+    // is new to this screen. Empty postmark_date falls back to the
+    // existing OCR guess server-side, unchanged from before.
+    const [pickedUpDate, setPickedUpDate] = useState('')
+    const [postmarkDate, setPostmarkDate] = useState('')
+    const [letterWrittenDate, setLetterWrittenDate] = useState('')
 
     // Full roster, fetched once, keyed by CPID -- the fallback source for
     // the address-verification panel below when the confirmed person isn't
@@ -126,6 +150,9 @@ export function IntakeArea() {
                     add_to_db: addToDb,
                     add_to_print_queue: addToPrintQueue,
                     routing_status_override: routingChoice || null,
+                    date_picked_up_po: dateInputToNoonISO(pickedUpDate),
+                    postmarked_at: dateInputToNoonISO(postmarkDate),
+                    letter_written_at: dateInputToNoonISO(letterWrittenDate),
                     ...(addressEditing ? {
                         corrected_address: correctedAddress.address || null,
                         corrected_city: correctedAddress.city || null,
@@ -456,6 +483,46 @@ export function IntakeArea() {
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Letter dates (added 04Oct2026) -- entered here at
+                        scan-confirm, before the letter is committed, rather
+                        than only correctable afterward via the Letter
+                        Journey panel on the letter detail view. */}
+                    <div className="mt-6 w-full max-w-6xl bg-white rounded-2xl border border-calpop-navy/15 shadow-sm p-5">
+                        <h4 className="text-xs font-bold text-calpop-blue uppercase tracking-widest mb-4">Letter Dates</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-sm font-bold text-calpop-ink block mb-1">Letter written</label>
+                                <input
+                                    type="date"
+                                    value={letterWrittenDate}
+                                    onChange={(e) => setLetterWrittenDate(e.target.value)}
+                                    className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-3 py-2 text-sm text-calpop-ink"
+                                />
+                                <div className="text-xs text-calpop-navy mt-1">The date on the letter itself, if shown.</div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-calpop-ink block mb-1">Letter postmarked</label>
+                                <input
+                                    type="date"
+                                    value={postmarkDate}
+                                    onChange={(e) => setPostmarkDate(e.target.value)}
+                                    className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-3 py-2 text-sm text-calpop-ink"
+                                />
+                                <div className="text-xs text-calpop-navy mt-1">Leave blank to keep the automatic OCR guess from the envelope.</div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-calpop-ink block mb-1">PO box pickup</label>
+                                <input
+                                    type="date"
+                                    value={pickedUpDate}
+                                    onChange={(e) => setPickedUpDate(e.target.value)}
+                                    className="w-full bg-calpop-panel border border-calpop-navy/25 rounded-lg px-3 py-2 text-sm text-calpop-ink"
+                                />
+                                <div className="text-xs text-calpop-navy mt-1">When staff physically picked this up.</div>
                             </div>
                         </div>
                     </div>
