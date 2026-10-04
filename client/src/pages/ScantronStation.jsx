@@ -25,7 +25,7 @@ export function IntakeArea() {
     // changes, since verification is per-person, not per-scan.
     const [addressVerified, setAddressVerified] = useState(false)
     const [addressEditing, setAddressEditing] = useState(false)
-    const [correctedAddress, setCorrectedAddress] = useState({ address: '', city: '', state: '', zip: '' })
+    const [correctedAddress, setCorrectedAddress] = useState({ address: '', city: '', state: '', zip: '', housing: '' })
 
     // Full roster, fetched once, keyed by CPID -- the fallback source for
     // the address-verification panel below when the confirmed person isn't
@@ -71,7 +71,7 @@ export function IntakeArea() {
         setConfirmedCpid(cpid)
         setAddressVerified(false)
         setAddressEditing(false)
-        setCorrectedAddress({ address: '', city: '', state: '', zip: '' })
+        setCorrectedAddress({ address: '', city: '', state: '', zip: '', housing: '' })
         setAddToPrintQueue(false) // depends on a fresh addressVerified for this specific person
     }
 
@@ -131,6 +131,7 @@ export function IntakeArea() {
                         corrected_city: correctedAddress.city || null,
                         corrected_state: correctedAddress.state || null,
                         corrected_zip: correctedAddress.zip || null,
+                        corrected_housing: correctedAddress.housing || null,
                     } : {}),
                 })
             })
@@ -370,6 +371,9 @@ export function IntakeArea() {
                                                 </div>
 
                                                 <div className="bg-white border border-calpop-navy/15 rounded-lg p-3 mb-3 text-xs text-calpop-ink font-mono">
+                                                    <div className="font-bold text-calpop-accent mb-1">
+                                                        Housing: {confirmedCandidate.housing || '(none on file)'}
+                                                    </div>
                                                     {confirmedCandidate.address || '(no address on file)'}<br />
                                                     {[confirmedCandidate.city, confirmedCandidate.state, confirmedCandidate.zip].filter(Boolean).join(', ') || '—'}
                                                 </div>
@@ -380,6 +384,12 @@ export function IntakeArea() {
                                                     </div>
                                                 ) : addressEditing ? (
                                                     <div className="space-y-2">
+                                                        <input
+                                                            className="w-full bg-white border border-calpop-accent/40 rounded px-3 py-2 text-calpop-ink text-sm font-bold focus:border-calpop-accent outline-none"
+                                                            placeholder="Corrected housing/unit"
+                                                            value={correctedAddress.housing}
+                                                            onChange={(e) => setCorrectedAddress({ ...correctedAddress, housing: e.target.value })}
+                                                        />
                                                         <input
                                                             className="w-full bg-white border border-calpop-navy/25 rounded px-3 py-2 text-calpop-ink text-sm focus:border-calpop-blue outline-none"
                                                             placeholder="Corrected street address"
@@ -433,6 +443,7 @@ export function IntakeArea() {
                                                                     city: confirmedCandidate.city || '',
                                                                     state: confirmedCandidate.state || '',
                                                                     zip: confirmedCandidate.zip || '',
+                                                                    housing: confirmedCandidate.housing || '',
                                                                 })
                                                             }}
                                                             className="flex-1 py-2 bg-calpop-accent/10 hover:bg-calpop-accent text-calpop-accent hover:text-white rounded-lg text-sm font-bold border border-calpop-accent/25 transition-colors"

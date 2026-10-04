@@ -191,6 +191,7 @@ class LetterService:
         corrected_city: Optional[str] = None,
         corrected_state: Optional[str] = None,
         corrected_zip: Optional[str] = None,
+        corrected_housing: Optional[str] = None,
         add_to_db: bool = True,
         add_to_print_queue: bool = False,
     ) -> Letter:
@@ -279,7 +280,7 @@ class LetterService:
         # substitute for the human check. If address_verified is missing or
         # False, the letter still gets created below -- this step is
         # additive, not a hard gate on scan intake.
-        if corrected_address or corrected_city or corrected_state or corrected_zip:
+        if corrected_address or corrected_city or corrected_state or corrected_zip or corrected_housing:
             if corrected_address:
                 p.address = corrected_address
             if corrected_city:
@@ -288,6 +289,12 @@ class LetterService:
                 p.state = corrected_state
             if corrected_zip:
                 p.zip = corrected_zip
+            if corrected_housing:
+                # Housing/unit assignment -- changes far more often than the
+                # facility mailing address itself, so it's corrected here
+                # alongside the address rather than needing its own
+                # separate verification step.
+                p.housing = corrected_housing
 
         if address_verified:
             p.letter_exchange_count = (p.letter_exchange_count or 0) + 1
@@ -370,12 +377,14 @@ class LetterService:
             postmarked_at=extract_postmark_date_guess(ocr_text),
             picked_up_at=date_picked_up_po,
             # Auto -- "address change y/n" from the paper checklist. True
-            # whenever a corrected address was actually entered at
-            # scan-confirm (see step 1b above); not asserted from
-            # address_verified alone, since confirming the on-file address
-            # as-is is not a change.
+            # whenever a corrected address OR housing was actually entered
+            # at scan-confirm (see step 1b above); not asserted from
+            # address_verified alone, since confirming the on-file info
+            # as-is is not a change. Housing included 04Oct2026 -- it
+            # changes more often than the mailing address and is exactly
+            # the kind of location change this touchpoint is meant to flag.
             address_change_confirmed=bool(
-                corrected_address or corrected_city or corrected_state or corrected_zip
+                corrected_address or corrected_city or corrected_state or corrected_zip or corrected_housing
             ),
         )
         self.db.add(dates)

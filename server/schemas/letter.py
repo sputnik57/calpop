@@ -143,6 +143,9 @@ class LetterScanIngest(BaseModel):
     corrected_city: Optional[str] = None
     corrected_state: Optional[str] = None
     corrected_zip: Optional[str] = None
+    corrected_housing: Optional[str] = Field(
+        None, description="Housing/unit assignment -- a real roster field (Prisoner.housing) that changes more often than the facility mailing address itself, so it belongs in the same scan-confirm verification step, not just the address lines."
+    )
     # Added 22Aug2026 -- both explicit, neither automatic. add_to_db=False
     # still creates a Letter (and a minimal, literature_only=True Prisoner
     # row for it to attach to -- see create_letter_from_ocr) rather than
