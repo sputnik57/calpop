@@ -34,6 +34,33 @@ function toLocalInputValue(iso) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// Date-only variants (added 04Oct2026) for the three fields that are
+// genuinely calendar dates with no meaningful time-of-day (letter written,
+// postmarked, PO pickup) -- matching the plain date pickers already used
+// for these same fields on the scan-confirm screen (ScantronStation.jsx).
+function fmtDate(iso) {
+    if (!iso) return null
+    return parseUTC(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function toLocalDateInputValue(iso) {
+    if (!iso) return ''
+    const d = parseUTC(iso)
+    const pad = n => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// A bare <input type="date"> value has no time-of-day -- sending it as
+// midnight UTC can shift it to the previous calendar day once converted
+// back to local time for display. Anchoring at local noon avoids that in
+// any real-world timezone (same fix as ScantronStation.jsx's
+// dateInputToNoonISO, which this mirrors).
+function dateInputToNoonISO(dateStr) {
+    if (!dateStr) return null
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(y, m - 1, d, 12, 0, 0).toISOString()
+}
+
 // One row for a touchpoint that's tracked automatically -- no user input,
 // just a read-only fact (or "not yet") plus who/what sets it.
 function AutoRow({ icon: Icon, label, sourceNote, value, extra }) {
@@ -128,9 +155,9 @@ function ManualRow({ icon: Icon, label, sourceNote, value, onSet, onClear, savin
 // just a one-shot "mark it done."
 function EditableDateRow({ icon: Icon, label, sourceNote, value, onSet, onClear, saving }) {
     const done = !!value
-    const [draft, setDraft] = useState(toLocalInputValue(value))
+    const [draft, setDraft] = useState(toLocalDateInputValue(value))
 
-    useEffect(() => { setDraft(toLocalInputValue(value)) }, [value])
+    useEffect(() => { setDraft(toLocalDateInputValue(value)) }, [value])
 
     return (
         <div className="flex items-start gap-3 py-2.5">
@@ -144,20 +171,20 @@ function EditableDateRow({ icon: Icon, label, sourceNote, value, onSet, onClear,
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-calpop-ink">{label}</span>
                     {done && (
-                        <span className="text-xs font-mono text-calpop-navy/70 whitespace-nowrap">{fmt(value)}</span>
+                        <span className="text-xs font-mono text-calpop-navy/70 whitespace-nowrap">{fmtDate(value)}</span>
                     )}
                 </div>
                 <div className="text-[11px] text-calpop-navy/50 mb-1">{sourceNote}</div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <input
-                        type="datetime-local"
+                        type="date"
                         value={draft}
                         onChange={e => setDraft(e.target.value)}
                         className="text-xs border border-calpop-navy/25 rounded px-1.5 py-1 text-calpop-ink"
                     />
                     <button
                         disabled={saving || !draft}
-                        onClick={() => onSet(new Date(draft).toISOString())}
+                        onClick={() => onSet(dateInputToNoonISO(draft))}
                         className="text-xs px-2 py-1 bg-calpop-blue/10 text-calpop-blue rounded hover:bg-calpop-blue/20 disabled:opacity-40 font-medium"
                     >
                         {done ? 'Correct date' : 'Set date'}
