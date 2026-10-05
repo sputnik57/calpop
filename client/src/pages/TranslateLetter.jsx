@@ -18,6 +18,7 @@ export function TranslateLetter() {
     const navigate = useNavigate()
     const [pages, setPages] = useState([]) // [{ id, dataUrl, redacted }]
     const [editingPageId, setEditingPageId] = useState(null) // page currently open in PageRedactionEditor
+    const [retakingPageId, setRetakingPageId] = useState(null) // page whose image the next capture should replace, not append (added 04Oct2026)
     const [translating, setTranslating] = useState(false)
     // { [pageId]: { local: {original_text, translation, detected_language, confidence} | null, google: {...} | null } }
     // Split into per-method slots 31Aug2026 at Rey's request -- previously
@@ -117,6 +118,34 @@ export function TranslateLetter() {
 
     const addPage = (dataUrl) => {
         setPages(prev => [...prev, { id: Date.now(), dataUrl, redacted: false }])
+    }
+
+    // Retake (added 04Oct2026, Rey processing a real letter): replaces a
+    // specific page's image IN PLACE, preserving its position in the list --
+    // previously the only option was remove + re-capture, which re-added
+    // the replacement at the END of the list, reordering a multi-page
+    // letter where physical page order matters. Stale per-page results tied
+    // to the OLD image content are cleared, same fields removePage already
+    // clears plus overlayUrls (a gap in removePage, not touched here since
+    // that's a separate button's behavior).
+    const replacePage = (pageId, newDataUrl) => {
+        setPages(prev => prev.map(p => p.id === pageId ? { ...p, dataUrl: newDataUrl, redacted: false } : p))
+        setTranslations(prev => {
+            const next = { ...prev }
+            delete next[pageId]
+            return next
+        })
+        setSelectedMethod(prev => {
+            const next = { ...prev }
+            delete next[pageId]
+            return next
+        })
+        setOverlayUrls(prev => {
+            const next = { ...prev }
+            delete next[pageId]
+            return next
+        })
+        setRetakingPageId(null)
     }
 
     const removePage = (pageId) => {
@@ -442,7 +471,23 @@ export function TranslateLetter() {
                     </div>
                 )}
 
-                <RedactionCaptureStage onCapture={addPage} />
+                {retakingPageId && (
+                    <div className="mb-3 flex items-center justify-between px-4 py-2 bg-calpop-accent/10 border border-calpop-accent/30 rounded-lg">
+                        <span className="text-sm font-bold text-calpop-accent">
+                            Retaking Page {pages.findIndex(p => p.id === retakingPageId) + 1} -- next capture replaces it in place.
+                        </span>
+                        <button
+                            onClick={() => setRetakingPageId(null)}
+                            className="text-xs font-bold text-calpop-navy underline"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                )}
+                <RedactionCaptureStage
+                    onCapture={retakingPageId ? (dataUrl) => replacePage(retakingPageId, dataUrl) : addPage}
+                    captureLabel={retakingPageId ? `Capture Replacement for Page ${pages.findIndex(p => p.id === retakingPageId) + 1}` : undefined}
+                />
 
                 {pages.length > 0 && (
                     <div className="mt-6">
@@ -570,6 +615,13 @@ export function TranslateLetter() {
                                             className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-lg hover:bg-red-500 text-xs w-5 h-5 flex items-center justify-center"
                                         >
                                             ×
+                                        </button>
+                                        <button
+                                            onClick={() => setRetakingPageId(p.id)}
+                                            className="block w-full mt-1 text-[10px] font-bold text-calpop-accent hover:underline text-center"
+                                            title="Replace this page's image in place -- keeps its position in the list, unlike remove + re-add"
+                                        >
+                                            ↻ Retake
                                         </button>
                                     </div>
                                     {/* Generated via the bulk "Overlay" button in the Step 1/2
