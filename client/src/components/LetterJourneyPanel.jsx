@@ -25,15 +25,6 @@ function fmt(iso) {
     })
 }
 
-// For pre-filling a <input type="datetime-local"> from an ISO value --
-// that input wants local time with no timezone/seconds, "YYYY-MM-DDTHH:mm".
-function toLocalInputValue(iso) {
-    if (!iso) return ''
-    const d = parseUTC(iso)
-    const pad = n => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 // Date-only variants (added 04Oct2026) for the three fields that are
 // genuinely calendar dates with no meaningful time-of-day (letter written,
 // postmarked, PO pickup) -- matching the plain date pickers already used
@@ -77,7 +68,7 @@ function AutoRow({ icon: Icon, label, sourceNote, value, extra }) {
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-calpop-ink">{label}</span>
                     <span className="text-xs font-mono text-calpop-navy/70 whitespace-nowrap">
-                        {done ? fmt(value) : 'Not yet'}
+                        {done ? fmtDate(value) : 'Not yet'}
                     </span>
                 </div>
                 <div className="text-[11px] text-calpop-navy/50">{sourceNote}</div>
@@ -88,7 +79,8 @@ function AutoRow({ icon: Icon, label, sourceNote, value, extra }) {
 }
 
 // One row for a manually-entered touchpoint -- Rey marks it done (now, or
-// backdated) and can clear it if entered by mistake.
+// backdated) and can clear it if entered by mistake. Date-only since
+// 11Oct2026 per Rey: none of the journey touchpoints need a time of day.
 function ManualRow({ icon: Icon, label, sourceNote, value, onSet, onClear, saving }) {
     const done = !!value
     const [customDate, setCustomDate] = useState('')
@@ -105,7 +97,7 @@ function ManualRow({ icon: Icon, label, sourceNote, value, onSet, onClear, savin
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-calpop-ink">{label}</span>
                     {done && (
-                        <span className="text-xs font-mono text-calpop-navy/70 whitespace-nowrap">{fmt(value)}</span>
+                        <span className="text-xs font-mono text-calpop-navy/70 whitespace-nowrap">{fmtDate(value)}</span>
                     )}
                 </div>
                 <div className="text-[11px] text-calpop-navy/50 mb-1">{sourceNote}</div>
@@ -128,14 +120,14 @@ function ManualRow({ icon: Icon, label, sourceNote, value, onSet, onClear, savin
                                 Mark now
                             </button>
                             <input
-                                type="datetime-local"
+                                type="date"
                                 value={customDate}
                                 onChange={e => setCustomDate(e.target.value)}
                                 className="text-xs border border-calpop-navy/25 rounded px-1.5 py-1 text-calpop-ink"
                             />
                             <button
                                 disabled={saving || !customDate}
-                                onClick={() => { onSet(new Date(customDate).toISOString()); setCustomDate('') }}
+                                onClick={() => { onSet(dateInputToNoonISO(customDate)); setCustomDate('') }}
                                 className="text-xs px-2 py-1 bg-calpop-panel text-calpop-navy rounded hover:bg-calpop-navy/10 disabled:opacity-40"
                             >
                                 Set date
@@ -385,7 +377,7 @@ export function LetterJourneyPanel({ letterId }) {
                         {reminders.map(r => (
                             <div key={r.id} className="flex items-center justify-between text-xs bg-calpop-panel rounded px-2 py-1.5">
                                 <span className="text-calpop-ink">
-                                    <span className="font-mono">{fmt(r.reminded_at)}</span>
+                                    <span className="font-mono">{fmtDate(r.reminded_at)}</span>
                                     {r.note && <span className="text-calpop-navy/70"> -- {r.note}</span>}
                                 </span>
                                 <button onClick={() => deleteReminder(r.id)} className="text-calpop-navy/40 hover:text-red-600">

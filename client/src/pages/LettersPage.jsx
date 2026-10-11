@@ -24,6 +24,18 @@ export function LettersPage() {
             })
     }, [])
 
+    // Letters written outside the app (e.g. in Word) never move past their
+    // intake status, so the Letter Journey's mailed/printed dates (set on
+    // the Edit page) override the stored status for display. Added 11Oct2026.
+    const getDisplayStatus = (letter) => {
+        const dates = letter.dates || {}
+        const short = (iso) => new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + 'Z')
+            .toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        if (dates.mailed_at) return { key: 'completed', label: `Mailed ${short(dates.mailed_at)}` }
+        if (dates.printed_at) return { key: 'review', label: `Printed ${short(dates.printed_at)}` }
+        return { key: letter.status, label: letter.status }
+    }
+
     const getStatusColor = (status) => {
         switch (status) {
             case 'completed': return 'text-calpop-olive'
@@ -93,12 +105,14 @@ export function LettersPage() {
                                     </td>
                                 </tr>
                             ) : (
-                                letters.map(letter => (
+                                letters.map(letter => {
+                                    const display = getDisplayStatus(letter)
+                                    return (
                                     <tr key={letter.id} className="border-b border-calpop-navy/10 last:border-0 hover:bg-calpop-blue/5 transition-colors group">
                                         <td className="px-4 py-2 whitespace-nowrap">
-                                            <div className={`flex items-center gap-1.5 ${getStatusColor(letter.status)}`}>
-                                                {getStatusIcon(letter.status)}
-                                                <span className="capitalize font-medium">{letter.status}</span>
+                                            <div className={`flex items-center gap-1.5 ${getStatusColor(display.key)}`}>
+                                                {getStatusIcon(display.key)}
+                                                <span className="capitalize font-medium">{display.label}</span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-2 text-calpop-ink whitespace-nowrap">{letter.title || "Untitled Draft"}</td>
@@ -123,7 +137,8 @@ export function LettersPage() {
                                             </div>
                                         </td>
                                     </tr>
-                                ))
+                                    )
+                                })
                             )}
                         </tbody>
                     </table>
