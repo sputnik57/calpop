@@ -9,6 +9,38 @@ const EMPTY_FORM = {
     name: '', pseudonym: '', email: '', phone: '', sponsor_type: 'individual', onedrive_folder_link: '',
 }
 
+// Who each sponsor has, not just how many (added 11Oct2026). Active
+// (Stage 1-12) CPIDs always show; dormant (Stage 90+) sit behind a toggle
+// since they can outnumber the active ones (Rey G: 30 active, 20 dormant).
+function SponseeList({ sponsor }) {
+    const [showDormant, setShowDormant] = useState(false)
+    const list = sponsor.sponsees || []
+    const active = list.filter(p => p.stage != null && p.stage >= 1 && p.stage <= 12)
+    const dormant = list.filter(p => p.stage != null && p.stage >= 90)
+    const other = list.filter(p => !active.includes(p) && !dormant.includes(p))
+    const chip = (p, muted) => (
+        <span key={p.cpid} title={`${p.first_name || 'No first name on file'} · ${p.current_step || 'No step on file'}`}
+            className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${muted ? 'text-calpop-navy/50 border-calpop-navy/15' : 'text-calpop-blue bg-calpop-blue/5 border-calpop-blue/20'}`}>
+            {p.cpid}
+        </span>
+    )
+    return (
+        <div className="min-w-[180px] max-w-[340px]">
+            <div className="text-calpop-ink mb-1" title="active / dormant (Stage 90+)">{sponsor.sponsee_count_active}/{sponsor.sponsee_count_dormant}</div>
+            <div className="flex flex-wrap gap-1">
+                {active.map(p => chip(p, false))}
+                {other.map(p => chip(p, true))}
+                {showDormant && dormant.map(p => chip(p, true))}
+            </div>
+            {dormant.length > 0 && (
+                <button onClick={() => setShowDormant(v => !v)} className="mt-1 text-[11px] text-calpop-navy/60 hover:text-calpop-blue underline">
+                    {showDormant ? 'Hide dormant' : `Show ${dormant.length} dormant`}
+                </button>
+            )}
+        </div>
+    )
+}
+
 function SponsorDirectory({ refreshKey }) {
     const [sponsors, setSponsors] = useState([])
     const [loading, setLoading] = useState(true)
@@ -171,7 +203,7 @@ function SponsorDirectory({ refreshKey }) {
                                             <input className={editInputClass + ' mb-1'} placeholder="Email" type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
                                             <input className={editInputClass} placeholder="Phone" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
                                         </td>
-                                        <td className="px-4 py-2 align-top text-calpop-ink text-xs" title="active / dormant (Stage 90+)">{s.sponsee_count_active}/{s.sponsee_count_dormant}</td>
+                                        <td className="px-4 py-2 align-top text-xs"><SponseeList sponsor={s} /></td>
                                         <td className="px-4 py-2 align-top">
                                             <input className={editInputClass + ' min-w-[260px]'} placeholder="OneDrive link" value={editForm.onedrive_folder_link} onChange={e => setEditForm({ ...editForm, onedrive_folder_link: e.target.value })} />
                                         </td>
@@ -206,7 +238,7 @@ function SponsorDirectory({ refreshKey }) {
                                             {s.phone && <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" />{s.phone}</span>}
                                             {!s.email && !s.phone && '—'}
                                         </td>
-                                        <td className="px-4 py-2 text-calpop-ink whitespace-nowrap" title="active / dormant (Stage 90+)">{s.sponsee_count_active}/{s.sponsee_count_dormant}</td>
+                                        <td className="px-4 py-2 align-top"><SponseeList sponsor={s} /></td>
                                         <td className="px-4 py-2 whitespace-nowrap">
                                             {s.onedrive_folder_link ? (
                                                 <a href={s.onedrive_folder_link} target="_blank" rel="noreferrer" className="text-calpop-blue hover:underline inline-flex items-center gap-1">

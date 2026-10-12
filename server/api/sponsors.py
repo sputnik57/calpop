@@ -8,7 +8,7 @@ from api.deps import get_db
 from auth.dependencies import require_admin
 from auth.models import UserContext
 from db.models import Prisoner, Sponsor
-from schemas.sponsor import SponsorCreate, SponsorOut
+from schemas.sponsor import SponseeBrief, SponsorCreate, SponsorOut
 
 router = APIRouter(tags=["sponsors"])
 
@@ -49,12 +49,38 @@ def _count_for(sponsor: Sponsor, counts: dict) -> dict:
     return counts.get(sponsor.name, {"active": 0, "dormant": 0})
 
 
+def _sponsees_by_name(db: Session) -> dict:
+    """{sponsor_name: [SponseeBrief, ...]} sorted by CPID -- the list behind
+    _sponsee_counts' numbers, keyed the same way so _count_for's name
+    matching (including the course fallback) applies unchanged."""
+    out: dict = {}
+    rows = (
+        db.query(Prisoner.sponsor_name, Prisoner.cpid, Prisoner.first_name, Prisoner.stage, Prisoner.step_received_count)
+        .filter(Prisoner.sponsor_name.isnot(None))
+        .order_by(Prisoner.cpid)
+        .all()
+    )
+    for name, cpid, first_name, stage, step in rows:
+        out.setdefault(name, []).append(
+            SponseeBrief(cpid=cpid, first_name=first_name, stage=stage, current_step=step)
+        )
+    return out
+
+
+def _sponsees_for(sponsor: Sponsor, sponsees: dict) -> list:
+    """List counterpart of _count_for -- same course fallback."""
+    if sponsor.sponsor_type == "course":
+        return sponsees.get("Course", [])
+    return sponsees.get(sponsor.name, [])
+
+
 @router.get("", response_model=List[SponsorOut])
 def list_sponsors(
     db: Session = Depends(get_db),
     _admin: UserContext = Depends(require_admin),
 ):
     counts = _sponsee_counts(db)
+    sponsees = _sponsees_by_name(db)
     sponsors = db.query(Sponsor).order_by(Sponsor.name).all()
     out = []
     for s in sponsors:
@@ -62,6 +88,7 @@ def list_sponsors(
         counted = _count_for(s, counts)
         item.sponsee_count_active = counted["active"]
         item.sponsee_count_dormant = counted["dormant"]
+        item.sponsees = _sponsees_for(s, sponsees)
         out.append(item)
     return out
 
