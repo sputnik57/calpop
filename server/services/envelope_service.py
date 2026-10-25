@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from reportlab.lib.pagesizes import landscape
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
@@ -45,10 +45,10 @@ class EnvelopeService:
         lines.append(settings.envelope_sender_city_state_zip)
         return lines
 
-    def _destination(self, submission_id: int, safety_classification: str) -> Path:
-        return self.storage_root / f"envelope_{submission_id}_{safety_classification}.pdf"
+    def _destination(self, submission_id: Optional[int], safety_classification: str, file_stem: Optional[str] = None) -> Path:
+        return self.storage_root / f"{file_stem or f'envelope_{submission_id}'}_{safety_classification}.pdf"
 
-    def generate_envelope(self, submission_id: int, prisoner: Dict[str, Any]) -> Path:
+    def generate_envelope(self, submission_id: Optional[int], prisoner: Dict[str, Any], file_stem: Optional[str] = None) -> Path:
         """
         Generates a PDF for a #10 envelope.
 
@@ -57,7 +57,9 @@ class EnvelopeService:
         safety_classification.
         """
         safety_classification = self.resolve_safety_classification(prisoner)
-        dest = self._destination(submission_id, safety_classification)
+        # file_stem names an envelope that has no submission behind it
+        # (envelopes-only printing, added 25Oct2026).
+        dest = self._destination(submission_id, safety_classification, file_stem)
         c = canvas.Canvas(str(dest), pagesize=self.envelope_size)
 
         # 1. Draw Return Address (Top Left) -- selected by safety classification

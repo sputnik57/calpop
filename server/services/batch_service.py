@@ -23,6 +23,55 @@ class BatchService:
         self.submission_service = submission_service
         self.envelope_service = envelope_service
 
+    def process_envelopes_only(self, prisoner_cpids: List[str]) -> BatchResponse:
+        """
+        Envelopes for these people and nothing else -- no Letter, no
+        Submission, no letter PDF. Added 25Oct2026 so Rey can print envelopes
+        ahead of the reply (a stack of addressed envelopes is his physical
+        view of the backlog), or for mail that isn't a reply at all.
+        process_batch, by contrast, creates a new Letter per person, which
+        double-booked letters that already existed when used just for
+        envelopes. Same safe/unsafe split and print-queue clearing as
+        process_batch.
+        """
+        from db.models import Prisoner
+
+        batch_id = str(uuid.uuid4())[:8]
+        safe_paths, unsafe_paths = [], []
+        for cpid in prisoner_cpids:
+            try:
+                prisoner_details = self.submission_service.resolve_prisoner_for_mailing(cpid)
+                env_path = self.envelope_service.generate_envelope(
+                    None, prisoner_details, file_stem=f"envonly_{batch_id}_{cpid}"
+                )
+                if EnvelopeService.resolve_safety_classification(prisoner_details) == "safe":
+                    safe_paths.append(env_path)
+                else:
+                    unsafe_paths.append(env_path)
+
+                prisoner_row = self.db.query(Prisoner).filter(Prisoner.cpid == cpid).first()
+                if prisoner_row:
+                    prisoner_row.queued_for_printing_at = None
+                    self.db.commit()
+            except Exception as e:
+                print(f"ERROR in envelope-only item {cpid}: {e}")
+                continue
+
+        merge = self.submission_service.artifact_service.merge_pdfs
+        url_safe = url_unsafe = None
+        if safe_paths:
+            url_safe = f"/api/static/data/submissions/{merge(safe_paths, f'envonly_{batch_id}_envelopes_safe.pdf').name}"
+        if unsafe_paths:
+            url_unsafe = f"/api/static/data/submissions/{merge(unsafe_paths, f'envonly_{batch_id}_envelopes_unsafe.pdf').name}"
+
+        return BatchResponse(
+            processed_count=len(safe_paths) + len(unsafe_paths),
+            submission_ids=[],
+            merged_pdf_url=None,
+            merged_envelope_url_safe=url_safe,
+            merged_envelope_url_unsafe=url_unsafe,
+        )
+
     def process_batch(self, data: BatchLetterCreate, author_id: int, is_admin: bool = False) -> BatchResponse:
         """
         Processes a batch of letters: Creates Letter -> Submission -> Artifacts.

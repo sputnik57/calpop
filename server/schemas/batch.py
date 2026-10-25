@@ -7,6 +7,9 @@ class BatchLetterCreate(BaseModel):
     content: str
     content_format: str = "markdown"
 
+class BatchEnvelopesCreate(BaseModel):
+    prisoner_cpids: List[str]
+
 class BatchResponse(BaseModel):
     processed_count: int
     submission_ids: List[int]

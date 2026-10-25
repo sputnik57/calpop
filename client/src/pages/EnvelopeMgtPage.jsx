@@ -165,6 +165,30 @@ function PrintEnvelopesPanel() {
         }
     }
 
+    // Envelopes only -- creates no letters (added 25Oct2026). For printing
+    // envelopes ahead of the reply, or for mail that isn't a reply.
+    const handleEnvelopesOnly = async () => {
+        if (!window.confirm(`Print envelopes only for ${selectedCpids.length} ${selectedCpids.length === 1 ? 'person' : 'people'}? No letters are created.`)) return
+        setIsProcessing(true)
+        try {
+            const res = await fetch('/api/batch/envelopes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ prisoner_cpids: selectedCpids }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(data.detail || `Could not make envelopes (${res.status})`)
+            setBatchResult(data)
+            setSelectedCpids([])
+            loadQueue()
+        } catch (err) {
+            alert('Error: ' + err.message)
+        } finally {
+            setIsProcessing(false)
+        }
+    }
+
     const handleBatchSubmit = async () => {
         setIsProcessing(true)
         try {
@@ -201,14 +225,20 @@ function PrintEnvelopesPanel() {
                             <CheckCircle2 className="w-10 h-10 text-calpop-olive" />
                         </div>
                         <div>
-                            <h3 className="text-xl font-bold text-calpop-ink">Batch Processed!</h3>
-                            <p className="text-calpop-navy mt-2">Successfully created correspondence for {batchResult.processed_count} prisoners.</p>
+                            <h3 className="text-xl font-bold text-calpop-ink">{batchResult.merged_pdf_url ? 'Batch Processed!' : 'Envelopes Ready'}</h3>
+                            <p className="text-calpop-navy mt-2">
+                                {batchResult.merged_pdf_url
+                                    ? `Created a new letter, letter PDF and envelope for ${batchResult.processed_count} ${batchResult.processed_count === 1 ? 'person' : 'people'}.`
+                                    : `Envelopes for ${batchResult.processed_count} ${batchResult.processed_count === 1 ? 'person' : 'people'}. No letters were created.`}
+                            </p>
                         </div>
                         <div className="grid grid-cols-1 gap-3">
-                            <a href={batchResult.merged_pdf_url} target="_blank" rel="noreferrer"
-                               className="w-full py-3 bg-calpop-blue hover:brightness-95 text-white rounded-xl font-bold flex items-center justify-center gap-2">
-                                <ExternalLink className="w-4 h-4" /> Download Letters PDF
-                            </a>
+                            {batchResult.merged_pdf_url && (
+                                <a href={batchResult.merged_pdf_url} target="_blank" rel="noreferrer"
+                                   className="w-full py-3 bg-calpop-blue hover:brightness-95 text-white rounded-xl font-bold flex items-center justify-center gap-2">
+                                    <ExternalLink className="w-4 h-4" /> Download Letters PDF
+                                </a>
+                            )}
                             {/* Deliberately two separate downloads, never merged -- these use
                                 different sender addresses on the envelope and must never be
                                 printed as one combined run. */}
@@ -251,6 +281,11 @@ function PrintEnvelopesPanel() {
                                     <X className="w-6 h-6" />
                                 </button>
                             </div>
+                        </div>
+                        <div className="text-sm text-calpop-navy bg-calpop-panel border border-calpop-navy/15 rounded-lg p-4 space-y-2">
+                            <p><b className="text-calpop-ink">What this does:</b> sends the same message to everyone selected. For each person it creates a <b>new letter</b> in Letter Management, a letter PDF with the message below, and an envelope. You get one combined letters PDF and separate SAFE and UNSAFE envelope PDFs.</p>
+                            <p><b className="text-calpop-ink">Use it for</b> mass mailings, such as wait letters or newsletters.</p>
+                            <p><b className="text-calpop-ink">Don't use it</b> to mail a sponsor's reply to a letter you already scanned: it would create a duplicate letter. For that, close this and use <b>Envelopes Only</b>, then print the reply from Letter Management.</p>
                         </div>
                         <div className="space-y-4">
                             <div>
@@ -365,15 +400,28 @@ function PrintEnvelopesPanel() {
 
             <div className="flex items-center justify-between pt-2">
                 <span className="text-calpop-navy text-sm">{selectedCpids.length} selected</span>
+                <div className="flex items-center gap-3">
+                <button
+                    onClick={handleEnvelopesOnly}
+                    disabled={selectedCpids.length === 0 || isProcessing}
+                    title="Envelopes for the selected people. Creates no letters."
+                    className={`px-6 py-2.5 rounded-lg font-bold text-white flex items-center gap-2 transition-all ${
+                        selectedCpids.length === 0 ? 'bg-calpop-navy/25 cursor-not-allowed' : 'bg-calpop-blue hover:bg-calpop-navy'
+                    }`}
+                >
+                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Envelopes Only
+                </button>
                 <button
                     onClick={() => setShowBatchModal(true)}
+                    title="Same message to everyone selected: creates a new letter, letter PDF and envelope per person."
                     disabled={selectedCpids.length === 0}
                     className={`px-6 py-2.5 rounded-lg font-bold text-white flex items-center gap-2 transition-all ${
                         selectedCpids.length === 0 ? 'bg-calpop-navy/25 cursor-not-allowed' : 'bg-calpop-accent hover:brightness-95'
                     }`}
                 >
-                    <Printer className="w-4 h-4" /> Batch Print
+                    <Printer className="w-4 h-4" /> Batch Letter + Envelopes
                 </button>
+                </div>
             </div>
         </div>
     )
