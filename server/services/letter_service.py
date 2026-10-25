@@ -790,6 +790,39 @@ class LetterService:
             "supported": True,
         }
 
+    def _reply_ref(self, letter_id: int) -> str:
+        letter = self.get_letter(letter_id)
+        ref = letter.dates.sponsor_reply_item_id if letter.dates else None
+        if not ref:
+            raise ValueError(f"Letter {letter_id} has no reply doc (not uploaded to a sponsor yet)")
+        return ref
+
+    def get_reply_web_url(self, letter_id: int) -> Optional[str]:
+        """Link that opens the sponsor's reply doc in OneDrive."""
+        from config import get_settings
+        from services.storage_service import get_storage_service
+        return get_storage_service(get_settings(), self.db).get_web_url(self._reply_ref(letter_id))
+
+    def get_replies_pdf(self, letter_ids: List[int]) -> bytes:
+        """The sponsors' reply docs for these letters as one PDF, in the
+        order given, for printing in one run. Added 25Oct2026."""
+        import io
+        from PyPDF2 import PdfMerger
+        from config import get_settings
+        from services.storage_service import get_storage_service
+
+        storage = get_storage_service(get_settings(), self.db)
+        merger = PdfMerger()
+        for letter_id in letter_ids:
+            pdf = storage.download_as_pdf(self._reply_ref(letter_id))
+            if pdf is None:
+                raise ValueError(f"Could not convert the reply doc for letter {letter_id} to PDF")
+            merger.append(io.BytesIO(pdf))
+        out = io.BytesIO()
+        merger.write(out)
+        merger.close()
+        return out.getvalue()
+
     def add_reminder(self, letter_id: int, reminded_at: Optional[datetime], note: Optional[str], created_by: Optional[int]) -> LetterReminder:
         self.get_letter(letter_id)  # existence check
         reminder = LetterReminder(

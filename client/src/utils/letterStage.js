@@ -46,9 +46,15 @@ export function getLetterStage(letter, submission) {
         ['picked_up', d.picked_up_at],
     ].find(([, date]) => date)
 
-    // No journey date at all: a letter started in the app with no incoming
-    // letter behind it (Start New Letter). It's waiting on someone to write,
-    // the same point in the journey as "Sponsor informed".
+    // No journey date at all, but a scan on file: a letter added before
+    // journey dates were tracked (29Sep2026). Scanned, as of when it was added.
+    if (!reached && (letter?.original_file_path || letter?.redacted_file_ref)) {
+        const index = STAGES.findIndex(s => s.key === 'scanned')
+        return { ...STAGES[index], index, date: letter.created_at, done: false }
+    }
+    // No journey date and no scan: a letter started in the app with no
+    // incoming letter behind it (Start New Letter). It's waiting on someone
+    // to write, the same point in the journey as "Sponsor informed".
     if (!reached) {
         const index = STAGES.findIndex(s => s.key === 'informed')
         return { key: 'to_write', label: 'Waiting to be written', waiting: 'Rey or sponsor to write', index, date: letter?.created_at, done: false }

@@ -3,7 +3,8 @@ import os
 import uuid
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status, File, UploadFile
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from api.deps import get_db, get_db_user
@@ -336,6 +337,44 @@ def check_letter_sponsor_visits(
         return service.check_sponsor_visits(letter_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/replies/pdf")
+def get_replies_pdf(
+    ids: str = Query(..., description="Comma-separated letter ids, in print order"),
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """The sponsors' reply docs for these letters, converted to PDF and
+    combined into one file in the order given. One id gives one reply."""
+    try:
+        letter_ids = [int(x) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ids must be comma-separated numbers")
+    if not letter_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No letter ids given")
+    try:
+        pdf = _service(db).get_replies_pdf(letter_ids)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    name = "replies.pdf" if len(letter_ids) > 1 else f"reply-{letter_ids[0]}.pdf"
+    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{name}"'})
+
+
+@router.get("/{letter_id}/reply/open")
+def open_letter_reply(
+    letter_id: int,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Redirects to the sponsor's reply doc in OneDrive."""
+    try:
+        url = _service(db).get_reply_web_url(letter_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    if not url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This storage backend has no web link for the reply doc")
+    return RedirectResponse(url)
 
 
 @router.post("/{letter_id}/journey/check-saves", response_model=SponsorSaveHistoryOut)

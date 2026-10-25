@@ -256,6 +256,28 @@ class OneDriveStorageService(StorageService):
             time_spent_seconds=access.get("timeSpentInSeconds", 0),
         )
 
+    def get_web_url(self, ref: str) -> Optional[str]:
+        resp = httpx.get(f"{GRAPH_BASE}/me/drive/items/{ref}?$select=webUrl", headers=self._headers(), timeout=30.0)
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        return resp.json().get("webUrl")
+
+    def download_as_pdf(self, ref: str) -> Optional[bytes]:
+        # Graph converts Word docs to PDF server-side (?format=pdf). Same
+        # redirect handling as download_file. Live-checked 25Oct2026 on a
+        # sponsor reply doc.
+        resp = httpx.get(
+            f"{GRAPH_BASE}/me/drive/items/{ref}/content?format=pdf",
+            headers=self._headers(),
+            timeout=120.0,
+            follow_redirects=True,
+        )
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        return resp.content
+
     def get_save_history(self, ref: str) -> Optional[SaveHistory]:
         # The versions list has one entry per save, newest first. Rey's own
         # upload is version 1 (he creates the file), so only versions saved

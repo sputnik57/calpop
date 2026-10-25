@@ -103,6 +103,16 @@ class StorageService(ABC):
         available', not zero visits. Overridden by OneDriveStorageService."""
         return None
 
+    def get_web_url(self, ref: str) -> Optional[str]:
+        """A link that opens `ref` in the backend's own viewer/editor, if it
+        has one. None on backends without one (local disk)."""
+        return None
+
+    def download_as_pdf(self, ref: str) -> Optional[bytes]:
+        """`ref` converted to PDF by the backend, if it can convert. None
+        means this backend can't, not that the file is missing."""
+        return None
+
     def get_save_history(self, ref: str) -> Optional[SaveHistory]:
         """Saves made to `ref` by anyone but its creator, if this backend
         keeps version history. None means no data, not zero saves.
