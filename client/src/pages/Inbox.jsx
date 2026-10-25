@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Inbox as InboxIcon, Clock, AlertCircle, CheckCircle2, ChevronRight, PenSquare, X, Loader2, Search } from 'lucide-react'
 import { usePrisonerDirectory } from '../hooks/usePrisonerDirectory'
-import { STAGES, getLetterStage, shortDate } from '../utils/letterStage'
+import { getLetterStage, shortDate } from '../utils/letterStage'
 
 function StartLetterModal({ onClose, onCreated }) {
     const { loading: loadingPrisoners, ensureLoaded, search: searchPrisoners } = usePrisonerDirectory()
@@ -175,8 +175,8 @@ export function Inbox() {
                         Letter from {task.prisoner?.first_name || 'Inmate'} {task.prisoner?.last_name || ''}
                     </h3>
                     {/* One segment per journey stage, filled up to this letter's stage */}
-                    <div className="flex gap-1 mt-3 max-w-md" title={STAGES.map(s => s.label).join(' → ')}>
-                        {STAGES.map((s, i) => (
+                    <div className="flex gap-1 mt-3 max-w-md" title={stage.stages.map(s => s.label).join(' → ')}>
+                        {stage.stages.map((s, i) => (
                             <div key={s.key} className={`h-1.5 flex-1 rounded-full ${i <= stage.index ? (stage.done ? 'bg-calpop-olive' : 'bg-calpop-blue') : 'bg-calpop-navy/15'}`} />
                         ))}
                     </div>

@@ -291,6 +291,7 @@ export function LetterJourneyPanel({ letterId }) {
 
     if (loading) return <div className="bg-white p-6 rounded-xl border border-calpop-navy/15 shadow-sm text-calpop-navy text-sm">Loading letter journey...</div>
     if (!letter) return null
+    const isBacklog = letter.status === 'waiting_for_sponsor'
 
     return (
         <div className="bg-white rounded-xl border border-calpop-navy/15 shadow-sm overflow-hidden">
@@ -338,6 +339,15 @@ export function LetterJourneyPanel({ letterId }) {
                     extra={dates.address_change_confirmed === false
                         ? <div className="text-[11px] text-calpop-navy/40 mt-0.5">No change at last scan-confirm</div> : null}
                 />
+                {/* A letter held for a sponsor (sponsor backlog) skips every
+                    sponsor step: Rey answers with a waiting-list letter, then
+                    prints and mails it (25Oct2026). */}
+                {isBacklog ? (
+                    <div className="py-2.5 text-xs text-calpop-navy/70 italic">
+                        No sponsor yet -- sponsor steps are skipped. Enter Printed and Mailed for the waiting-list letter; the letter is done once it's mailed.
+                    </div>
+                ) : (
+                <>
                 <AutoRow icon={Upload} label="Uploaded to sponsor's portal" sourceNote="Auto -- set when this letter is filed to the sponsor's OneDrive" value={dates.uploaded_at} />
 
                 <ManualRow
@@ -475,6 +485,8 @@ export function LetterJourneyPanel({ letterId }) {
                     onClear={() => setJourneyField('admin_reviewed_at', null)}
                     saving={saving}
                 />
+                </>
+                )}
                 <ManualRow
                     icon={Printer}
                     label="Printed"
