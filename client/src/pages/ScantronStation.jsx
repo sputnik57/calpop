@@ -239,6 +239,15 @@ export function IntakeArea() {
                         <div>
                             <h3 className="text-xl font-bold text-calpop-ink">Letter #{ingestResult.id} Created</h3>
                         </div>
+                        {/* The letter's database number, so the paper and the app
+                            match up (Letter Management's "Letter #"). Added 25Oct2026. */}
+                        <div className="bg-calpop-blue/10 border-2 border-calpop-blue rounded-xl p-5">
+                            <div className="text-xs font-bold text-calpop-blue uppercase tracking-widest mb-1">Letter #</div>
+                            <div className="text-5xl font-black text-calpop-ink font-mono">{ingestResult.id}</div>
+                            <div className="text-sm font-bold text-calpop-blue mt-3">
+                                NOTE: write this letter number on the bottom right of the envelope.
+                            </div>
+                        </div>
                         {ingestResult.letter_exchange_count != null && (
                             <div className="bg-calpop-accent/10 border-2 border-calpop-accent rounded-xl p-5">
                                 <div className="text-xs font-bold text-calpop-accent uppercase tracking-widest mb-1">Exchange #</div>

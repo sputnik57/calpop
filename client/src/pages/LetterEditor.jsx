@@ -108,9 +108,16 @@ export function LetterEditor() {
                     <h2 className="text-xl font-bold text-slate-100">
                         {isNew ? 'New Letter' : 'Edit Letter'}
                     </h2>
-                    <span className="text-xs font-mono text-slate-500 uppercase">
-                        {isNew ? 'Drafting' : `ID: ${id}`}
-                    </span>
+                    {isNew ? (
+                        <span className="text-xs font-mono text-slate-500 uppercase">Drafting</span>
+                    ) : (
+                        // The letter's database id, which Rey writes on the
+                        // envelope so the two match up. Made prominent 25Oct2026.
+                        <div className="text-right">
+                            <div className="text-2xl font-bold font-mono text-slate-100">Letter #{id}</div>
+                            <div className="text-xs text-slate-400 mt-1">Write #{id} on the bottom-right corner of the envelope</div>
+                        </div>
+                    )}
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
