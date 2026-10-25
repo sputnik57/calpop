@@ -73,11 +73,23 @@ function NavDropdown({ item, active }) {
     )
 }
 
+// Shown at the top and bottom of every page, like the banners on a
+// classified document. Alarm red on a single thin line (Rey, 25Oct2026).
+function PrivacyBanner({ className = '' }) {
+    return (
+        <div className={`z-[120] w-full bg-red-600 text-white text-center text-xs font-bold tracking-widest py-1 px-4 ${className}`}>
+            PRIVATE INFORMATION // CALPOP USE ONLY
+            <span className="font-normal tracking-normal"> -- personal information about incarcerated people; do not share outside CalPOP</span>
+        </div>
+    )
+}
+
 export function Layout() {
     const location = useLocation()
 
     return (
-        <div className="min-h-screen bg-calpop-bg text-calpop-ink">
+        <div className="min-h-screen bg-calpop-bg text-calpop-ink pb-8">
+            <PrivacyBanner className="sticky top-0" />
             <header className="bg-calpop-navy">
                 <div className="max-w-[1600px] mx-auto px-8 py-7 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -122,6 +134,7 @@ export function Layout() {
             <main className="max-w-[1600px] mx-auto px-8 py-8">
                 <Outlet />
             </main>
+            <PrivacyBanner className="fixed bottom-0 left-0" />
         </div>
     )
 }
