@@ -19,13 +19,15 @@ function SponseeList({ sponsor }) {
     const dormant = list.filter(p => p.stage != null && p.stage >= 90)
     const other = list.filter(p => !active.includes(p) && !dormant.includes(p))
     const chip = (p, muted) => (
-        <span key={p.cpid} title={`${p.first_name || 'No first name on file'} · ${p.current_step || 'No step on file'}`}
-            className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${muted ? 'text-calpop-navy/50 border-calpop-navy/15' : 'text-calpop-blue bg-calpop-blue/5 border-calpop-blue/20'}`}>
-            {p.cpid}
+        // First name shown with the CPID (25Oct2026) so Rey can match a stack
+        // of paper letters to his sponsees at a glance; step stays on hover.
+        <span key={p.cpid} title={p.current_step || 'No step on file'}
+            className={`text-[11px] px-1.5 py-0.5 rounded border whitespace-nowrap ${muted ? 'text-calpop-navy/50 border-calpop-navy/15' : 'text-calpop-blue bg-calpop-blue/5 border-calpop-blue/20'}`}>
+            <span className="font-semibold">{p.first_name || '—'}</span> <span className="font-mono">{p.cpid}</span>
         </span>
     )
     return (
-        <div className="min-w-[180px] max-w-[340px]">
+        <div className="min-w-[180px] max-w-[460px]">
             <div className="text-calpop-ink mb-1" title="active / dormant (Stage 90+)">{sponsor.sponsee_count_active}/{sponsor.sponsee_count_dormant}</div>
             <div className="flex flex-wrap gap-1">
                 {active.map(p => chip(p, false))}
