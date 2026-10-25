@@ -120,6 +120,15 @@ checklist today; not yet represented anywhere in the app's schema.
 13. Printed response
 14. Mailed response
 
+**Update 25Oct2026:** this checklist is now built. Each item is a date on
+`LetterDates` (`db/models.py`), shown and edited in the Letter Journey panel
+(`client/src/components/LetterJourneyPanel.jsx`), and
+`client/src/utils/letterStage.js` turns those dates into the stage shown in
+the Work Queue and Letter Mgt. Item 9 ("sponsor writing letter") is
+approximated by the reply doc's OneDrive save history (first save, last
+save, number of saves): an indicator, not proof. See "Letter paths and real
+cases" below.
+
 **Not yet reconciled against `LetterStatusHistory`** (built 22Aug2026, one
 append-only row per status change) or `Letter.status` itself — both are
 coarser than this 14-point checklist. Whether this becomes the actual
@@ -173,3 +182,84 @@ intake, then deliberately de-anonymized at specific controlled points (8S,
 8C, 9) when a sponsor or evaluator legitimately needs the real name, then
 presumably re-anonymized again for storage/knowledge-base purposes. That's a
 different, more careful mechanism than a one-way redaction tool.
+
+## Letter paths and real cases (added 25Oct2026)
+
+For our reference: the paths a letter can take in the app as of today, and
+the real cases that shaped them. Each case came from an actual letter in
+Rey's stack. When a new odd case comes up, check it against this list
+before building anything.
+
+### The paths
+
+`Letter.status` now carries the routing decision made at scan-confirm
+(ScantronStation.jsx, "Next Step"), and `getLetterStage()` picks the track:
+
+| Status | When | Track (stages) | Done when |
+|---|---|---|---|
+| `queued_for_letter_scan` | Person has a sponsor (incl. "Rey G") | Picked up, Scanned, Uploaded to sponsor, Sponsor informed, Sponsor finished, Admin reviewed, Printed, Mailed | Mailed |
+| `queued_for_writing` | Rey writes it himself | Same 8 stages | Mailed |
+| `waiting_for_sponsor` | No sponsor yet (sponsor backlog) | Picked up, Scanned, Waiting-list letter printed, Waiting-list letter mailed | Mailed (the person stays in the backlog) |
+| (no scan, no dates) | Started with Start New Letter | "Waiting to be written" | Mailed |
+
+"No sponsor" means `sponsor_name` is blank, "?", starts with "Course", or is
+a drop/cancel marker ("DROP", "CANX", "dropped ..."). The same rule decides
+the scan-confirm choice and People > Sponsor Backlog
+(`get_sponsor_backlog` in `server/main.py`).
+
+A journey date later than today counts as planned, not reached: the card
+reads "Next: Mail on <date>" until that day.
+
+### The cases
+
+1. **Scanned after it was already answered** (letter #34, KVD629). Rey scans
+   late and backdates. The journey dates can all predate the scan; that's
+   expected, not an error.
+2. **A follow-up letter covered by an earlier reply** (#34: "I haven't heard
+   from you", answered by the reply to #29). Give it the covering reply's
+   finished/printed/mailed dates and say so in the person's `review_notes`,
+   or the matching dates later look like a copy mistake.
+3. **Person entered by hand before their first scan** (KVK378, Justin). The
+   hand entry already counted the letter, so the scan's +1 made it 2. Fixed
+   by the editable "Exchange # for this letter" at scan-confirm
+   (`letter_exchange_count_override`), with a warning when the person has
+   no scanned letters but a nonzero count.
+4. **Person not in the system** (intake flow b). Add to Roster now checks
+   for the same CDCR # or name first (`_find_possible_duplicates`). Before,
+   a matching CPID was regenerated at the next cipher shift, silently
+   creating a second record for the same person.
+5. **No sponsor available, others ahead in line** (Justin). "Waiting for a
+   sponsor (backlog)" at scan-confirm; Rey answers with a waiting-list
+   letter. Backlog priority between organic requests and the original list
+   is deliberately left to Rey: the page groups and filters, it doesn't rank.
+6. **Active (Stage 10-12) with no sponsor** (DIS759 Chris, sponsor dropped;
+   SPS110 Robert, probably literature-only miscoded). Shouldn't happen, so
+   it's flagged "Needs attention" at the top of the backlog and in red on
+   the Dashboard.
+7. **Sponsor dropped** (Dan/"Caleb", 31Aug2026). Transfer: set the new
+   sponsor on People, add a dated note, and move the OneDrive sponsee
+   folders. Rey's own transferred sponsees live in the OneDrive folder
+   "move to Rey" (an archive; he replies from his desktop). Rey's alias
+   "Rudy C" has no folder, so an app upload for his sponsees would create
+   one; left as is on purpose.
+8. **Sponsor writes PDFs instead of the reply doc** (Matt/"Gerald M"). The
+   save check will always read 0 for him; his reply shows up only as a new
+   PDF in the exchange folder.
+9. **Rey edits through a sponsor's shared link.** OneDrive records those
+   edits as "Guest Contributor", the same as the sponsor, so they count as
+   sponsor saves.
+10. **Upload done but not recorded** (#27, Alanna). The pages reached
+    OneDrive but `uploaded_at` and `sponsor_reply_item_id` were never set,
+    so the letter stuck at "Scanned". Fixed by hand; there's no UI for it.
+11. **Bare records from before scan tracking** (#22, #23, Aug 30): no scan,
+    no dates, only a link to the OneDrive upload. Removed; OneDrive kept.
+12. **Envelopes for mail that isn't a reply, or ahead of the reply** (the
+    physical backlog). Envelope Mgt > Envelopes Only. "Batch Letter +
+    Envelopes" creates a new letter per person, which double-booked #27/#28
+    as #31/#32 when used just for envelopes.
+13. **Address or housing changed on People after the scan** (#35, KPD080).
+    The People save now marks "Address change" on the person's latest
+    unmailed letter.
+14. **Intro letter template with Rey's name in it.** A sponsee answered Rey
+    instead of their sponsor (Omid's). Only matters for new sponsor-sponsee
+    pairs; Robert's copy is now `intro_letter_v2.docx`, signed "[NAME]".
