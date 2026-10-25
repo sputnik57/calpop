@@ -17,10 +17,11 @@ const NAV_ITEMS = [
     },
     {
         label: 'People', icon: Users,
-        match: (path) => path.startsWith('/prisoners') || path.startsWith('/sponsors'),
+        match: (path) => path.startsWith('/prisoners') || path.startsWith('/sponsors') || path.startsWith('/backlog'),
         children: [
             { label: 'Sponsees', to: '/prisoners', match: (path) => path.startsWith('/prisoners') },
             { label: 'Sponsors', to: '/sponsors', match: (path) => path.startsWith('/sponsors') },
+            { label: 'Sponsor Backlog', to: '/backlog', match: (path) => path.startsWith('/backlog') },
         ],
     },
 ]

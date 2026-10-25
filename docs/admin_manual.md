@@ -19,6 +19,20 @@ When you receive physical mail from a prisoner:
 3. Drag and drop the files into the **"Upload New Letter"** area.
 4. The system will create a "Draft" letter record.
 
+### Scan-confirm: choosing the Next Step (updated 25Oct2026)
+After you confirm who the letter is from, **Next Step (pick one)** offers two choices. The first is always **Letter Writing Queue**. The second depends on that person:
+
+| Situation | Second choice reads |
+|---|---|
+| Person identified, **has a sponsor** (including Rey G) | **Route to Sponsor (name)** |
+| Person identified, **no sponsor** | **Waiting for a sponsor (backlog)** |
+| **No person identified yet** (no CPID confirmed) | **Waiting for a sponsor (backlog)** |
+
+- "No sponsor" means the sponsor field is blank, "?", "Course", or a drop/cancel marker such as "DROP" or "CANX".
+- **Waiting for a sponsor (backlog)** holds the letter until someone is assigned. The person appears on **People > Sponsor Backlog**, grouped as organic requests (they wrote to us) or the original list. People marked **Needs attention** (active, Stage 10-12, but no sponsor) are listed first.
+- Once you click **Matches** on the address, an **Exchange # for this letter** box shows the next number. Change it if the person was entered by hand from this same letter, so it isn't counted twice.
+- The popup after confirming shows the **Letter #** (write it on the bottom right of the envelope) and the **Exchange #** (write it on the front of the envelope).
+
 ### Step 2: OCR & Identification
 1. Open the newly uploaded letter.
 2. In the **"OCR Workstation"**, click **"Run OCR"** to convert the handwriting/type to text.

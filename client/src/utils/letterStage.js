@@ -60,6 +60,11 @@ export function getLetterStage(letter, submission) {
         return { key: 'to_write', label: 'Waiting to be written', waiting: 'Rey or sponsor to write', index, date: letter?.created_at, done: false }
     }
     const [key, date] = reached
+    // Scanned but held for a sponsor (sponsor backlog, 25Oct2026).
+    if (letter?.status === 'waiting_for_sponsor' && ['picked_up', 'scanned'].includes(key)) {
+        const index = STAGES.findIndex(s => s.key === 'scanned')
+        return { key: 'waiting_for_sponsor', label: 'Waiting for a sponsor', waiting: 'Assign a sponsor (backlog)', index, date, done: false }
+    }
     const index = STAGES.findIndex(s => s.key === key)
     return { ...STAGES[index], index, date, done: key === 'mailed' }
 }

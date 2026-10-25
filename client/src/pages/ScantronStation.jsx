@@ -77,7 +77,15 @@ export function IntakeArea() {
     // assigned." Looked up from the full roster, not confirmedCandidate
     // itself, since the OCR-matched candidate shape doesn't carry sponsor_name.
     const existingSponsorName = confirmedCpid && rosterByCpid[confirmedCpid]?.sponsor_name
-    const hasRealSponsor = existingSponsorName && existingSponsorName !== 'Course'
+    // Blank, "?", "Course" and drop/cancel markers ("DROP", "CANX",
+    // "dropped as sponsee...") are not a sponsor -- these people get the
+    // backlog choice, matching People > Sponsor Backlog (25Oct2026). Before
+    // this, any text showed as "Route to Sponsor (DROP)".
+    const sponsorText = (existingSponsorName || '').trim()
+    const hasRealSponsor = !!sponsorText && sponsorText !== '?'
+        && !/^course\b/i.test(sponsorText)
+        && !/^(drop|canx)\b/i.test(sponsorText)
+        && !/\bdropped\b/i.test(sponsorText)
 
     // Routing (added 22Aug2026) -- replaces the old automatic
     // sponsor_name-based routing entirely, per an explicit decision: staff
@@ -89,7 +97,17 @@ export function IntakeArea() {
     // addressVerified is true (also enforced server-side).
     const [addToDb, setAddToDb] = useState(true)
     const [addToPrintQueue, setAddToPrintQueue] = useState(false)
-    const [routingChoice, setRoutingChoice] = useState('') // 'queued_for_writing' | 'queued_for_letter_scan'
+    const [routingChoice, setRoutingChoice] = useState('') // 'queued_for_writing' | 'queued_for_letter_scan' | 'waiting_for_sponsor'
+
+    // Exchange # for this letter, shown and editable once the address is
+    // verified (25Oct2026). Defaults to the record's count + 1, but someone
+    // entered by hand from this same letter already has it counted.
+    const [exchangeInput, setExchangeInput] = useState('')
+    const rosterEntry = confirmedCpid ? rosterByCpid[confirmedCpid] : null
+    const currentExchangeCount = rosterEntry?.letter_exchange_count ?? 0
+    const defaultExchange = currentExchangeCount + 1
+    const exchangeValue = exchangeInput !== '' ? Number(exchangeInput) : defaultExchange
+    const firstScanWithCount = rosterEntry && (rosterEntry.letters_received_count ?? 0) === 0 && currentExchangeCount > 0
 
     const resetAddressVerification = (cpid) => {
         setConfirmedCpid(cpid)
@@ -97,6 +115,7 @@ export function IntakeArea() {
         setAddressEditing(false)
         setCorrectedAddress({ address: '', city: '', state: '', zip: '', housing: '' })
         setAddToPrintQueue(false) // depends on a fresh addressVerified for this specific person
+        setExchangeInput('')
     }
 
     // Called by RedactionCaptureStage once it's produced a redacted image --
@@ -153,6 +172,8 @@ export function IntakeArea() {
                     date_picked_up_po: dateInputToNoonISO(pickedUpDate),
                     postmarked_at: dateInputToNoonISO(postmarkDate),
                     letter_written_at: dateInputToNoonISO(letterWrittenDate),
+                    ...(addressVerified && rosterEntry && Number.isInteger(exchangeValue) && exchangeValue > 0
+                        ? { letter_exchange_count_override: exchangeValue } : {}),
                     ...(addressEditing ? {
                         corrected_address: correctedAddress.address || null,
                         corrected_city: correctedAddress.city || null,
@@ -415,8 +436,30 @@ export function IntakeArea() {
                                                 </div>
 
                                                 {addressVerified && !addressEditing ? (
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-calpop-olive">
-                                                        <CheckCircle2 className="w-4 h-4" /> Address verified
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-center gap-2 text-xs font-bold text-calpop-olive">
+                                                            <CheckCircle2 className="w-4 h-4" /> Address verified
+                                                        </div>
+                                                        {rosterEntry && (
+                                                            <div className="bg-white border border-calpop-navy/15 rounded-lg p-3">
+                                                                <label className="flex items-center justify-between gap-3">
+                                                                    <span className="text-xs font-bold text-calpop-ink uppercase tracking-tight">Exchange # for this letter</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        value={exchangeInput !== '' ? exchangeInput : defaultExchange}
+                                                                        onChange={(e) => setExchangeInput(e.target.value)}
+                                                                        className="w-20 bg-white border border-calpop-navy/25 rounded px-2 py-1 text-calpop-ink text-sm font-mono text-right focus:border-calpop-blue outline-none"
+                                                                    />
+                                                                </label>
+                                                                <div className="text-[11px] text-calpop-navy/70 mt-1">Their record shows {currentExchangeCount} so far.</div>
+                                                                {firstScanWithCount && (
+                                                                    <div className="text-xs font-bold text-calpop-accent mt-2">
+                                                                        First scan for this person, but their record already shows {currentExchangeCount}. If they were entered from this same letter, use {currentExchangeCount}.
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ) : addressEditing ? (
                                                     <div className="space-y-2">
@@ -586,12 +629,15 @@ export function IntakeArea() {
                                         <input
                                             type="radio"
                                             name="routingChoice"
-                                            checked={routingChoice === 'queued_for_letter_scan'}
-                                            onChange={() => setRoutingChoice('queued_for_letter_scan')}
+                                            checked={routingChoice === (hasRealSponsor ? 'queued_for_letter_scan' : 'waiting_for_sponsor')}
+                                            onChange={() => setRoutingChoice(hasRealSponsor ? 'queued_for_letter_scan' : 'waiting_for_sponsor')}
                                             className="w-4 h-4"
                                         />
                                         <span className="text-sm text-calpop-ink">
-                                            {hasRealSponsor ? `Route to Sponsor (${existingSponsorName})` : 'Assign Sponsor Queue'}
+                                            {/* No sponsor yet: hold in the sponsor backlog (25Oct2026).
+                                                Replaces "Assign Sponsor Queue", which only set the same
+                                                status as routing to a real sponsor. */}
+                                            {hasRealSponsor ? `Route to Sponsor (${existingSponsorName})` : 'Waiting for a sponsor (backlog)'}
                                         </span>
                                     </label>
                                 </div>

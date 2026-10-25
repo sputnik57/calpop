@@ -145,8 +145,11 @@ class LetterScanIngest(BaseModel):
     letter_written_at: Optional[datetime] = Field(
         None, description="The date written on the letter itself (its dateline) -- distinct from the envelope's postmark, no OCR guess exists for this one. Added 04Oct2026 so it can be entered at scan-confirm time, alongside the other letter dates, rather than only after the fact via the Letter Journey panel."
     )
+    letter_exchange_count_override: Optional[int] = Field(
+        None, description="Exchange number for this letter, confirmed by staff at scan-confirm. Replaces the automatic +1 when given (25Oct2026)."
+    )
     routing_status_override: Optional[str] = Field(
-        None, description="'queued_for_writing' or 'queued_for_letter_scan'. As of 22Aug2026 this is the PRIMARY routing mechanism -- ScantronStation.jsx always sends an explicit staff choice (Letter Writing Queue vs Assign Sponsor Queue), replacing the old automatic sponsor_name-based inference. That automatic path (services/letter_service.resolve_envelope_routing_status) still runs as a fallback when this is omitted, including its ambiguous-sponsor 409."
+        None, description="'queued_for_writing', 'queued_for_letter_scan' or 'waiting_for_sponsor' (added 25Oct2026: no sponsor yet, held in the sponsor backlog). As of 22Aug2026 this is the PRIMARY routing mechanism -- ScantronStation.jsx always sends an explicit staff choice (Letter Writing Queue vs Assign Sponsor Queue), replacing the old automatic sponsor_name-based inference. That automatic path (services/letter_service.resolve_envelope_routing_status) still runs as a fallback when this is omitted, including its ambiguous-sponsor 409."
     )
     # Scan-confirm address verification (added 18Aug2026). address_verified
     # is the human's yes/no on whatever the frontend showed them (either the

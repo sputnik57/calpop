@@ -355,8 +355,38 @@ def get_excel_status(user=Depends(require_admin)):
     """Get status of loaded Excel data."""
     return excel_manager.get_summary()
 
+def _find_possible_duplicates(db, payload) -> list:
+    """People already on file who may be the same person: same CDCR number,
+    or same first and last name. CDCR and names are encrypted at rest, so
+    this compares decrypted values in Python (the roster is small). Added
+    25Oct2026 -- before this, generating a CPID for someone already on file
+    collided with their existing CPID and silently retried at a new shift,
+    creating a second record for the same person."""
+    from db.models import Prisoner
+
+    def norm(v):
+        return "".join(ch for ch in str(v or "").lower() if ch.isalnum())
+
+    cdcr = norm(payload.cdcr_number)
+    first, last = norm(payload.first_name), norm(payload.last_name)
+    matches = []
+    for p in db.query(Prisoner).all():
+        reasons = []
+        if cdcr and norm(p.cdcr_number) == cdcr:
+            reasons.append("same CDCR #")
+        if first and last and norm(p.first_name) == first and norm(p.last_name) == last:
+            reasons.append("same name")
+        if reasons:
+            matches.append({
+                "cpid": p.cpid, "first_name": p.first_name, "last_name": p.last_name,
+                "cdcr_number": p.cdcr_number, "facility": p.facility,
+                "sponsor_name": p.sponsor_name, "stage": p.stage, "reasons": reasons,
+            })
+    return matches
+
+
 @app.post("/api/prisoners")
-def create_prisoner(payload: PrisonerCreate, user=Depends(require_admin)):
+def create_prisoner(payload: PrisonerCreate, confirm_new: bool = False, user=Depends(require_admin)):
     """
     Envelope Mgt's not-found branch: a person who wrote in isn't in the
     roster at all yet. Generates a CPID from the entered name/CDCR# via
@@ -375,6 +405,13 @@ def create_prisoner(payload: PrisonerCreate, user=Depends(require_admin)):
 
     db = SessionLocal()
     try:
+        # Stop before creating a second record for someone already on file;
+        # the form shows the matches and can resend with confirm_new=true.
+        if not confirm_new:
+            matches = _find_possible_duplicates(db, payload)
+            if matches:
+                raise HTTPException(status_code=409, detail={"possible_duplicates": matches})
+
         cpid = None
         for shift in range(1, 26):
             candidate = generate_cpid_from_info(payload.first_name, payload.last_name, payload.cdcr_number, shift=shift)
@@ -557,6 +594,79 @@ def export_prisoners_excel(user=Depends(require_admin)):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@app.get("/api/prisoners/backlog")
+def get_sponsor_backlog(user=Depends(require_admin)):
+    """
+    People > Sponsor Backlog (added 25Oct2026): everyone active (stage
+    below 90) with no sponsor at all -- not "Rey G", who is a real sponsor
+    here. Mainly two kinds, neither clearly ahead of the other (Rey):
+    organic writers, who wrote in first, and people from the original
+    outreach list, who don't know about CalPOP yet. Also anyone whose
+    sponsor was dropped, and referrals. Source and the date their letter
+    came in are read from review_notes ("Organically originated, letter
+    received 17Aug2026 ..."). Registered before /api/prisoners/{cpid}.
+    """
+    import re
+    from datetime import datetime
+    from db.models import Prisoner, Letter
+
+    db = SessionLocal()
+    try:
+        waiting = {}
+        for cpid, created_at in (
+            db.query(Letter.prisoner_cpid, Letter.created_at)
+            .filter(Letter.status == "waiting_for_sponsor")
+            .all()
+        ):
+            waiting.setdefault(cpid, []).append(created_at)
+
+        rows = []
+        for p in db.query(Prisoner).all():
+            if (p.sponsor_name or "").strip() not in ("", "?"):
+                continue
+            if p.stage is not None and p.stage >= 90:
+                continue
+            notes = p.review_notes or ""
+            if re.search(r"sponsor dropped|dropped from calpop", notes, re.I):
+                source = "Sponsor dropped"
+            elif re.search(r"organically\s+orig", notes, re.I):
+                source = "Organic"
+            elif re.search(r"referred", notes, re.I):
+                source = "Referred"
+            else:
+                source = "Original list"
+            received = None
+            m = re.search(r"letter received (\d{1,2}[A-Za-z]{3}\d{4})", notes)
+            if m:
+                try:
+                    received = datetime.strptime(m.group(1), "%d%b%Y").date().isoformat()
+                except ValueError:
+                    pass
+            rows.append({
+                "cpid": p.cpid,
+                "first_name": p.first_name,
+                "last_name": p.last_name,
+                "facility": p.facility,
+                "stage": p.stage,
+                "letter_exchange_count": p.letter_exchange_count,
+                "source": source,
+                "letter_received": received,
+                "letters_waiting": len(waiting.get(p.cpid, [])),
+                "oldest_waiting_scan": min(waiting[p.cpid]).isoformat() if p.cpid in waiting else None,
+                "review_notes": p.review_notes,
+            })
+        # Waiting letters first (oldest scan first), then by date received,
+        # then name. The order is a starting point; priority stays Rey's call.
+        rows.sort(key=lambda r: (
+            r["oldest_waiting_scan"] is None, r["oldest_waiting_scan"] or "",
+            r["letter_received"] is None, r["letter_received"] or "",
+            (r["first_name"] or "").lower(),
+        ))
+        return rows
+    finally:
+        db.close()
 
 
 @app.get("/api/prisoners/print-queue")

@@ -24,22 +24,34 @@ function AddNewPersonForm() {
     const [form, setForm] = useState(EMPTY_FORM)
     const [submitting, setSubmitting] = useState(false)
     const [result, setResult] = useState(null) // { ok: bool, message: string }
+    // People already on file who may be this person (same CDCR # or name),
+    // returned by the server before it creates a duplicate (25Oct2026).
+    const [duplicates, setDuplicates] = useState(null)
 
-    const setField = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }))
+    const setField = (field) => (e) => {
+        setForm(prev => ({ ...prev, [field]: e.target.value }))
+        setDuplicates(null)
+    }
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (confirmNew = false) => {
         setSubmitting(true)
         setResult(null)
         try {
-            const res = await fetch('/api/prisoners', {
+            const res = await fetch(`/api/prisoners${confirmNew ? '?confirm_new=true' : ''}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify(form),
             })
+            if (res.status === 409) {
+                const data = await res.json().catch(() => ({}))
+                setDuplicates(data.detail?.possible_duplicates || [])
+                return
+            }
             if (!res.ok) throw new Error(`Failed to add person (${res.status})`)
             const data = await res.json()
             setResult({ ok: true, message: `Added to roster with CPID ${data.cpid}.` })
+            setDuplicates(null)
             setForm(EMPTY_FORM)
         } catch (err) {
             setResult({ ok: false, message: err.message })
@@ -75,8 +87,31 @@ function AddNewPersonForm() {
                 <div><label className={labelClass}>State</label><input className={inputClass} value={form.state} onChange={setField('state')} placeholder="CA" /></div>
                 <div><label className={labelClass}>Zip</label><input className={inputClass} value={form.zip} onChange={setField('zip')} /></div>
             </div>
+            {duplicates && duplicates.length > 0 && (
+                <div className="mb-6 p-4 rounded-lg border-2 border-calpop-accent bg-calpop-accent/10">
+                    <div className="text-sm font-bold text-calpop-ink mb-2">This may be someone already on file. Nothing was added.</div>
+                    <div className="space-y-1.5 mb-3">
+                        {duplicates.map(d => (
+                            <div key={d.cpid} className="text-sm text-calpop-ink bg-white rounded px-3 py-2 border border-calpop-navy/10">
+                                <b>{d.first_name} {d.last_name}</b>
+                                <span className="ml-2 font-mono text-calpop-blue text-xs">{d.cpid}</span>
+                                <span className="ml-2 text-xs text-calpop-navy">CDCR {d.cdcr_number || '—'} · {d.sponsor_name ? `sponsor ${d.sponsor_name}` : 'no sponsor'} · stage {d.stage ?? '—'}</span>
+                                <span className="ml-2 text-xs font-bold text-calpop-accent">{d.reasons.join(', ')}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="text-xs text-calpop-navy mb-3">If this is the same person, use their existing CPID when you scan. If it's someone different, add them anyway.</div>
+                    <button
+                        onClick={() => handleSubmit(true)}
+                        disabled={submitting}
+                        className="px-4 py-2 rounded-lg text-sm font-bold bg-white text-calpop-accent border border-calpop-accent hover:bg-calpop-accent hover:text-white transition-colors"
+                    >
+                        Different person -- add anyway
+                    </button>
+                </div>
+            )}
             <button
-                onClick={handleSubmit}
+                onClick={() => handleSubmit(false)}
                 disabled={submitting}
                 className={`px-6 py-2.5 rounded-lg font-bold text-white transition-all flex items-center gap-2 ${submitting ? 'bg-calpop-navy/40' : 'bg-calpop-accent hover:brightness-95'}`}
             >

@@ -126,6 +126,7 @@ def ingest_scanned_letter(
             corrected_state=payload.corrected_state,
             corrected_zip=payload.corrected_zip,
             corrected_housing=payload.corrected_housing,
+            letter_exchange_count_override=payload.letter_exchange_count_override,
             add_to_db=payload.add_to_db,
             add_to_print_queue=payload.add_to_print_queue,
         )

@@ -196,6 +196,7 @@ class LetterService:
         corrected_housing: Optional[str] = None,
         add_to_db: bool = True,
         add_to_print_queue: bool = False,
+        letter_exchange_count_override: Optional[int] = None,
     ) -> Letter:
         from globals import excel_manager
         
@@ -298,7 +299,12 @@ class LetterService:
                 # separate verification step.
                 p.housing = corrected_housing
 
-        if address_verified:
+        # Staff can set the exchange number at scan-confirm (25Oct2026): a
+        # person entered by hand from this same letter already has it
+        # counted, so +1 here would double-count it.
+        if letter_exchange_count_override is not None:
+            p.letter_exchange_count = letter_exchange_count_override
+        elif address_verified:
             p.letter_exchange_count = (p.letter_exchange_count or 0) + 1
 
         # Print queue (added 18Aug2026, decoupled from address_verified
@@ -318,7 +324,7 @@ class LetterService:
         # new person) -> admin write queue; a real named sponsor -> the
         # letter-scan/OneDrive queue built out in Letter Mgt.
         if routing_status_override:
-            if routing_status_override not in ("queued_for_writing", "queued_for_letter_scan"):
+            if routing_status_override not in ("queued_for_writing", "queued_for_letter_scan", "waiting_for_sponsor"):
                 raise ValueError(f"Invalid routing_status_override: {routing_status_override!r}")
             routing_status = routing_status_override
         else:

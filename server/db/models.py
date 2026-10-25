@@ -33,6 +33,7 @@ letter_status_enum = Enum(
     "archived",
     "queued_for_writing",
     "queued_for_letter_scan",
+    "waiting_for_sponsor",
     name="letterstatus",
 )
 

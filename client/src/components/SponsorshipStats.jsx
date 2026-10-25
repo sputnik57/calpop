@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Users, UserCheck, Archive, Clock, UserX } from 'lucide-react';
 
 // Rewritten 29Sep2026 into two separate cards (was one combined "Program
@@ -8,8 +9,17 @@ import { Users, UserCheck, Archive, Clock, UserX } from 'lucide-react';
 export function SponsorshipStats() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    // Sponsor backlog (people with no sponsor yet), shown inside this card
+    // as "no sponsor yet" lines under Pending and Active rather than as its
+    // own card -- it's nearly all Pending, with a few Active (25Oct2026).
+    const [backlog, setBacklog] = useState(null);
 
     useEffect(() => {
+        fetch('/api/prisoners/backlog', { credentials: 'include' })
+            .then(res => res.ok ? res.json() : Promise.reject(res.status))
+            .then(setBacklog)
+            .catch(err => console.error("Failed to fetch sponsor backlog", err));
+
         fetch('/api/dashboard/program-summary')
             .then(res => res.json())
             .then(data => {
@@ -21,6 +31,11 @@ export function SponsorshipStats() {
                 setLoading(false);
             });
     }, []);
+
+    // Same Stage buckets as the rows below: Active 10-12, Pending 1-9.
+    const backlogIn = (bucket) => (backlog || []).filter(r =>
+        bucket === 'active' ? r.stage >= 10 && r.stage <= 12 : (r.stage == null || r.stage < 10)
+    ).length;
 
     if (loading) {
         return (
@@ -91,6 +106,14 @@ export function SponsorshipStats() {
                         </span>
                         <span className="font-mono font-bold text-calpop-ink">{sponsees.active}</span>
                     </div>
+                    {/* Active with no sponsor shouldn't happen -- flagged in red so it
+                        gets cleared first (25Oct2026). */}
+                    {backlog && backlogIn('active') > 0 && (
+                        <Link to="/backlog" className="flex items-center justify-between pl-6 -mt-1.5 text-xs font-bold text-red-700 hover:underline">
+                            <span>active with no sponsor -- needs attention</span>
+                            <span className="font-mono">{backlogIn('active')}</span>
+                        </Link>
+                    )}
                     <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2 text-sm text-calpop-ink">
                             <span className="w-2 h-2 rounded-full bg-calpop-accent"></span>
@@ -98,6 +121,12 @@ export function SponsorshipStats() {
                         </span>
                         <span className="font-mono font-bold text-calpop-ink">{sponsees.pending}</span>
                     </div>
+                    {backlog && backlogIn('pending') > 0 && (
+                        <Link to="/backlog" className="flex items-center justify-between pl-6 -mt-1.5 text-xs text-calpop-navy hover:text-calpop-blue">
+                            <span>no sponsor yet (backlog)</span>
+                            <span className="font-mono">{backlogIn('pending')}</span>
+                        </Link>
+                    )}
                     <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2 text-sm text-calpop-ink">
                             <span className="w-2 h-2 rounded-full bg-calpop-navy/40"></span>

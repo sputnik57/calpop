@@ -9,6 +9,7 @@ import { IntakeArea } from './pages/ScantronStation'
 import { PrisonersPage } from './pages/PrisonersPage'
 import { EnvelopeMgtPage } from './pages/EnvelopeMgtPage'
 import { SponsorsPage } from './pages/SponsorsPage'
+import { SponsorBacklogPage } from './pages/SponsorBacklogPage'
 import { ScanLetterUpload } from './pages/ScanLetterUpload'
 import { TranslateLetter } from './pages/TranslateLetter'
 import { UploadToSponsorPage } from './pages/UploadToSponsorPage'
@@ -31,6 +32,7 @@ function App() {
                     <Route path="envelope" element={<EnvelopeMgtPage />} />
                     <Route path="prisoners" element={<PrisonersPage />} />
                     <Route path="sponsors" element={<SponsorsPage />} />
+                    <Route path="backlog" element={<SponsorBacklogPage />} />
                 </Route>
             </Routes>
         </BrowserRouter>
