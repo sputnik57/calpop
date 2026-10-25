@@ -634,6 +634,8 @@ def remove_from_print_queue(cpid: str, user=Depends(require_admin)):
         db.close()
 
 
+# The same fields scan-confirm's address check can correct.
+_ADDRESS_FIELDS = ("address", "city", "state", "zip", "housing")
 _PRISONER_INT_FIELDS = {"stage", "letter_exchange_count"}  # step_received_count is free text as of 29Sep2026, not a number
 
 
@@ -659,6 +661,7 @@ def update_prisoner(cpid: str, payload: PrisonerUpdate, user=Depends(require_adm
             raise HTTPException(status_code=404, detail="Prisoner not found")
 
         updates = payload.dict(exclude_unset=True)
+        before = {f: getattr(prisoner, f) for f in _ADDRESS_FIELDS}
         for field, value in updates.items():
             if field in _PRISONER_INT_FIELDS:
                 if value is None or value == "":
@@ -673,6 +676,26 @@ def update_prisoner(cpid: str, payload: PrisonerUpdate, user=Depends(require_adm
                         )
             else:
                 setattr(prisoner, field, value if value != "" else None)
+
+        # An address or housing change made here (not at scan-confirm) still
+        # belongs on the Letter Journey's "Address change" row: mark it on
+        # this person's most recent letter that hasn't been mailed. Added
+        # 25Oct2026 after a housing fix on People right after a scan never
+        # showed up on the letter.
+        def _norm(v):
+            return (str(v).strip().lower() if v is not None else "")
+        if any(_norm(before[f]) != _norm(getattr(prisoner, f)) for f in _ADDRESS_FIELDS):
+            from db.models import Letter, LetterDates
+            for letter in (
+                db.query(Letter).filter(Letter.prisoner_cpid == cpid).order_by(Letter.id.desc()).all()
+            ):
+                if letter.dates and letter.dates.mailed_at:
+                    continue
+                if not letter.dates:
+                    letter.dates = LetterDates(letter_id=letter.id)
+                    db.add(letter.dates)
+                letter.dates.address_change_confirmed = True
+                break
 
         db.commit()
         db.refresh(prisoner)
