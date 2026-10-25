@@ -148,10 +148,16 @@ export function Inbox() {
     const renderCard = ({ task, stage }) => {
         const color = stage.done ? 'text-calpop-olive' : stage.key === 'to_write' || stage.key === 'informed' ? 'text-calpop-accent' : 'text-calpop-blue'
         return (
-            <Link
+            // Clicking the card opens the writing screen, as before; the two
+            // buttons on the right give a second path, to the letter's page
+            // in Letter Mgt with its Letter Journey (25Oct2026).
+            <div
                 key={task.id}
-                to={`/inbox/respond/${task.id}`}
-                className={`group bg-white hover:bg-calpop-panel p-5 rounded-xl border border-calpop-navy/15 hover:border-calpop-blue/50 transition-all shadow-lg flex items-center gap-6 ${stage.done ? 'opacity-70' : ''}`}
+                role="link"
+                tabIndex={0}
+                onClick={() => navigate(`/inbox/respond/${task.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/inbox/respond/${task.id}`) }}
+                className={`group cursor-pointer bg-white hover:bg-calpop-panel p-5 rounded-xl border border-calpop-navy/15 hover:border-calpop-blue/50 transition-all shadow-lg flex items-center gap-6 ${stage.done ? 'opacity-70' : ''}`}
             >
                 <div className={`p-3 rounded-lg bg-calpop-panel border border-calpop-navy/15 group-hover:border-calpop-blue/30 transition-colors ${color}`}>
                     {stage.done ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
@@ -185,9 +191,24 @@ export function Inbox() {
                             <span className="text-xs text-calpop-navy/70 mt-1">Next: {stage.waiting}</span>
                         )}
                     </div>
-                    <ChevronRight className="w-5 h-5 text-calpop-navy/70 group-hover:text-calpop-blue transform group-hover:translate-x-1 transition-all" />
+                    <div className="flex flex-col gap-1.5">
+                        <Link
+                            to={`/inbox/respond/${task.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center justify-between gap-1 px-3 py-1 rounded-md text-xs font-bold text-calpop-blue bg-calpop-blue/10 hover:bg-calpop-blue hover:text-white transition-colors whitespace-nowrap"
+                        >
+                            Write <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                        <Link
+                            to={`/letters/${task.letter_id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center justify-between gap-1 px-3 py-1 rounded-md text-xs font-bold text-calpop-navy bg-calpop-navy/10 hover:bg-calpop-navy hover:text-white transition-colors whitespace-nowrap"
+                        >
+                            Letter Mgt <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                    </div>
                 </div>
-            </Link>
+            </div>
         )
     }
 
