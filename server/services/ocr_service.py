@@ -352,12 +352,17 @@ class OCRService:
             "images": [image_b64],
             "format": "json",
             "stream": False,
-            "options": {"temperature": 0.0},
+            "keep_alive": settings.ollama_keep_alive,
+            "options": {
+                "temperature": 0.0,
+                "num_ctx": settings.ollama_num_ctx,
+                "num_predict": settings.ollama_scan_max_tokens,
+            },
         }
         url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
 
         try:
-            resp = httpx.post(url, json=payload, timeout=settings.ollama_timeout_seconds)
+            resp = httpx.post(url, json=payload, timeout=settings.ollama_scan_timeout_seconds)
             resp.raise_for_status()
         except httpx.HTTPError as e:
             error_text = (
@@ -512,7 +517,8 @@ class OCRService:
             "images": [image_b64],
             "format": "json",
             "stream": False,
-            "options": {"temperature": 0.0},
+            "keep_alive": settings.ollama_keep_alive,
+            "options": {"temperature": 0.0, "num_ctx": settings.ollama_num_ctx},
         }
         try:
             resp = httpx.post(url, json=payload, timeout=settings.ollama_timeout_seconds)
@@ -576,7 +582,8 @@ class OCRService:
             "prompt": OLLAMA_TRANSLATE_TEXT_PROMPT_TEMPLATE.format(lines_json=json.dumps(lines, ensure_ascii=False)),
             "format": "json",
             "stream": False,
-            "options": {"temperature": 0.0},
+            "keep_alive": settings.ollama_keep_alive,
+            "options": {"temperature": 0.0, "num_ctx": settings.ollama_num_ctx},
         }
         try:
             resp = httpx.post(url, json=payload, timeout=settings.ollama_timeout_seconds)

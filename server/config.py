@@ -118,6 +118,28 @@ class Settings(BaseSettings):
         "after a real translate request got cut off mid-generation.",
     )
     
+    # Added 25Oct2026 after a scan hung for the full 300s timeout. Ollama's
+    # default working memory (32768) made qwen2.5vl take ~22 GB of a 24 GB
+    # GPU, and nothing capped how long an answer could run, so a model stuck
+    # repeating itself kept generating until the app gave up. A normal
+    # envelope answer is ~120 tokens.
+    ollama_num_ctx: int = Field(
+        8192,
+        description="Context window sent with every Ollama call. Must be the same on every call, or Ollama reloads the model whenever it changes. 8192 holds a page image plus its answer and keeps the model fully on the GPU (~15 GB instead of ~22 GB).",
+    )
+    ollama_keep_alive: str = Field(
+        "30m",
+        description="How long Ollama keeps the model loaded after a call (its default is 5m, so the first scan after a pause paid a full reload).",
+    )
+    ollama_scan_max_tokens: int = Field(
+        1024,
+        description="Cap on the answer length for the envelope scan's OCR call, so a runaway answer stops in seconds, not minutes.",
+    )
+    ollama_scan_timeout_seconds: float = Field(
+        90.0,
+        description="Timeout for the envelope scan's OCR call, so a stuck scan fails in 90 seconds, not 5 minutes.",
+    )
+
     # Return-address blocks for outgoing envelopes. Two variants, never one:
     # "safe" uses the org's real identifying name; "unsafe" must contain no
     # substring that identifies the program's nature (e.g. no "SAA") for
