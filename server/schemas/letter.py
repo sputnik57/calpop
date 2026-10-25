@@ -22,6 +22,10 @@ class LetterDatesOut(BaseModel):
     sponsor_visit_actor_count: Optional[int] = None
     sponsor_visit_seconds: Optional[int] = None
     sponsor_visit_checked_at: Optional[datetime] = None
+    sponsor_first_save_at: Optional[datetime] = None
+    sponsor_last_save_at: Optional[datetime] = None
+    sponsor_save_count: Optional[int] = None
+    sponsor_saves_checked_at: Optional[datetime] = None
     informed_sponsor_at: Optional[datetime] = None
     sponsor_finished_at: Optional[datetime] = None
     admin_reviewed_at: Optional[datetime] = None
@@ -79,6 +83,14 @@ class SponsorVisitStatsOut(BaseModel):
     sponsor_visit_seconds: Optional[int] = None
     sponsor_visit_checked_at: Optional[datetime] = None
     supported: bool = Field(..., description="False when the active storage backend doesn't track visits at all (e.g. local disk) or this letter hasn't been uploaded yet -- distinct from a genuine zero-visits result.")
+
+
+class SponsorSaveHistoryOut(BaseModel):
+    sponsor_first_save_at: Optional[datetime] = None
+    sponsor_last_save_at: Optional[datetime] = None
+    sponsor_save_count: Optional[int] = None
+    sponsor_saves_checked_at: Optional[datetime] = None
+    supported: bool = Field(..., description="False when there's no reply doc yet or the storage backend keeps no version history -- distinct from a genuine zero-saves result.")
 
 
 class LetterStatusHistoryOut(BaseModel):

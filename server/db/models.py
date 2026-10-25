@@ -353,6 +353,16 @@ class LetterDates(Base):
     sponsor_visit_seconds: Mapped[Optional[int]] = mapped_column(Integer)
     sponsor_visit_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
+    # Auto, on-demand snapshot of the sponsor's saves on the reply doc, from
+    # OneDriveStorageService.get_save_history. Added 25Oct2026: per Rey, the
+    # save count is a good indicator of the sponsor's activity, not proof of
+    # it. First save approximates when they opened it (Word autosaves about
+    # every 10 minutes while typing); last save is when they finished.
+    sponsor_first_save_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    sponsor_last_save_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    sponsor_save_count: Mapped[Optional[int]] = mapped_column(Integer)
+    sponsor_saves_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
     # Manual, entered by Rey.
     informed_sponsor_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     sponsor_finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime)

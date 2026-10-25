@@ -40,6 +40,17 @@ class VisitStats:
 
 
 @dataclass
+class SaveHistory:
+    """The saves someone other than the file's creator made to one file,
+    read from its version history. Added 25Oct2026 for the sponsor's saves
+    on a reply doc: `save_count` is an indicator of activity, not proof of
+    it, and `first_save_at` only approximates when the file was opened."""
+    save_count: int
+    first_save_at: Optional[datetime]
+    last_save_at: Optional[datetime]
+
+
+@dataclass
 class StorageItem:
     """One entry returned by list_folder -- deliberately backend-agnostic.
 
@@ -90,6 +101,12 @@ class StorageService(ABC):
         it. Not abstract -- most backends (LocalStorageService) have no such
         concept and just return None; callers must treat None as 'no data
         available', not zero visits. Overridden by OneDriveStorageService."""
+        return None
+
+    def get_save_history(self, ref: str) -> Optional[SaveHistory]:
+        """Saves made to `ref` by anyone but its creator, if this backend
+        keeps version history. None means no data, not zero saves.
+        Overridden by OneDriveStorageService."""
         return None
 
 

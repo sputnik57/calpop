@@ -202,6 +202,7 @@ export function LetterJourneyPanel({ letterId }) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [checkingVisits, setCheckingVisits] = useState(false)
+    const [checkingSaves, setCheckingSaves] = useState(false)
     const [reminderNote, setReminderNote] = useState('')
 
     const load = useCallback(() => {
@@ -247,6 +248,20 @@ export function LetterJourneyPanel({ letterId }) {
             alert('Error checking visits: ' + err.message)
         } finally {
             setCheckingVisits(false)
+        }
+    }
+
+    const checkSaves = async () => {
+        setCheckingSaves(true)
+        try {
+            const res = await fetch(`/api/letters/${letterId}/journey/check-saves`, { method: 'POST' })
+            if (!res.ok) throw new Error(`OneDrive check failed (${res.status})`)
+            const result = await res.json()
+            setLetter(prev => ({ ...prev, dates: { ...prev.dates, ...result } }))
+        } catch (err) {
+            alert('Error checking saves: ' + err.message)
+        } finally {
+            setCheckingSaves(false)
         }
     }
 
@@ -360,6 +375,45 @@ export function LetterJourneyPanel({ letterId }) {
                                 <span className="font-mono">{dates.sponsor_visit_actor_count ?? 0} visitor{(dates.sponsor_visit_actor_count ?? 0) === 1 ? '' : 's'}</span>
                                 <span className="text-calpop-navy/50">as of {fmt(dates.sponsor_visit_checked_at)}</span>
                             </div>
+                        ) : (
+                            <div className="text-xs text-calpop-navy/40 italic">Not checked yet</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Sponsor writing letter -- saves on the reply doc, from its
+                    OneDrive version history. Indicator, not proof (Rey, 25Oct2026). */}
+                <div className="flex items-start gap-3 py-2.5">
+                    <PenLine className="w-5 h-5 text-calpop-navy/40 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-calpop-ink">Sponsor saves (approximate activity)</span>
+                            <button
+                                onClick={checkSaves}
+                                disabled={checkingSaves || !dates.sponsor_reply_item_id}
+                                className="flex items-center gap-1 text-xs px-2 py-1 bg-calpop-blue/10 text-calpop-blue rounded hover:bg-calpop-blue/20 disabled:opacity-40 font-medium"
+                                title={!dates.sponsor_reply_item_id ? "Not uploaded yet -- nothing to check" : "Read the reply doc's save history from OneDrive"}
+                            >
+                                <RefreshCw className={`w-3 h-3 ${checkingSaves ? 'animate-spin' : ''}`} />
+                                Check now
+                            </button>
+                        </div>
+                        <div className="text-[11px] text-calpop-navy/50 mb-1">
+                            Auto, on-demand -- Word saves about every 10 minutes while the sponsor types. A sign of activity, not proof of it; first save is roughly when they opened it.
+                        </div>
+                        {dates.sponsor_saves_checked_at ? (
+                            dates.sponsor_save_count ? (
+                                <div className="text-xs text-calpop-navy flex flex-wrap items-center gap-x-3 gap-y-1">
+                                    <span className="font-mono">{dates.sponsor_save_count} save{dates.sponsor_save_count === 1 ? '' : 's'}</span>
+                                    <span>first {fmt(dates.sponsor_first_save_at)}</span>
+                                    <span>last {fmt(dates.sponsor_last_save_at)}</span>
+                                    <span className="text-calpop-navy/50">as of {fmt(dates.sponsor_saves_checked_at)}</span>
+                                </div>
+                            ) : (
+                                <div className="text-xs text-calpop-navy">
+                                    No sponsor saves yet <span className="text-calpop-navy/50">as of {fmt(dates.sponsor_saves_checked_at)}</span>
+                                </div>
+                            )
                         ) : (
                             <div className="text-xs text-calpop-navy/40 italic">Not checked yet</div>
                         )}

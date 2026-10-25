@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from config import Settings
 from db.models import OneDriveConnection
-from services.storage_service import StorageService, StorageItem, VisitStats
+from services.storage_service import StorageService, StorageItem, VisitStats, SaveHistory
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
@@ -254,4 +254,45 @@ class OneDriveStorageService(StorageService):
             action_count=access.get("actionCount", 0),
             actor_count=access.get("actorCount", 0),
             time_spent_seconds=access.get("timeSpentInSeconds", 0),
+        )
+
+    def get_save_history(self, ref: str) -> Optional[SaveHistory]:
+        # The versions list has one entry per save, newest first. Rey's own
+        # upload is version 1 (he creates the file), so only versions saved
+        # by someone other than the creator count -- on a sponsor's reply
+        # doc that's the sponsor, shown by Graph as "Guest Contributor".
+        # Live-checked 25Oct2026 on two reply docs (10 and 8 sponsor saves).
+        item = httpx.get(
+            f"{GRAPH_BASE}/me/drive/items/{ref}?$select=createdBy",
+            headers=self._headers(),
+            timeout=30.0,
+        )
+        if item.status_code == 404:
+            return None
+        item.raise_for_status()
+        creator = (item.json().get("createdBy") or {}).get("user") or {}
+
+        versions = []
+        url = f"{GRAPH_BASE}/me/drive/items/{ref}/versions"
+        while url:
+            resp = httpx.get(url, headers=self._headers(), timeout=30.0)
+            resp.raise_for_status()
+            body = resp.json()
+            versions.extend(body.get("value", []))
+            url = body.get("@odata.nextLink")
+
+        def by_creator(v):
+            user = (v.get("lastModifiedBy") or {}).get("user") or {}
+            if creator.get("id") and user.get("id"):
+                return user["id"] == creator["id"]
+            return user.get("displayName") == creator.get("displayName")
+
+        times = sorted(
+            datetime.fromisoformat(v["lastModifiedDateTime"].replace("Z", "+00:00")).replace(tzinfo=None)
+            for v in versions if v.get("lastModifiedDateTime") and not by_creator(v)
+        )
+        return SaveHistory(
+            save_count=len(times),
+            first_save_at=times[0] if times else None,
+            last_save_at=times[-1] if times else None,
         )

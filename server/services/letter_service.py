@@ -752,6 +752,44 @@ class LetterService:
             "supported": True,
         }
 
+    def check_sponsor_saves(self, letter_id: int) -> Dict[str, Any]:
+        """On-demand snapshot of the sponsor's saves on this letter's reply
+        doc (first save, last save, how many). Same shape and "supported"
+        convention as check_sponsor_visits. Indicator, not proof -- see
+        LetterDates.sponsor_save_count."""
+        from config import get_settings
+        from services.storage_service import get_storage_service
+
+        unsupported = {
+            "sponsor_first_save_at": None,
+            "sponsor_last_save_at": None,
+            "sponsor_save_count": None,
+            "sponsor_saves_checked_at": None,
+            "supported": False,
+        }
+        letter = self.get_letter(letter_id)
+        item_id = letter.dates.sponsor_reply_item_id if letter.dates else None
+        if not item_id:
+            return unsupported
+
+        history = get_storage_service(get_settings(), self.db).get_save_history(item_id)
+        if history is None:
+            return unsupported
+
+        letter.dates.sponsor_first_save_at = history.first_save_at
+        letter.dates.sponsor_last_save_at = history.last_save_at
+        letter.dates.sponsor_save_count = history.save_count
+        letter.dates.sponsor_saves_checked_at = datetime.utcnow()
+        self.db.commit()
+
+        return {
+            "sponsor_first_save_at": history.first_save_at,
+            "sponsor_last_save_at": history.last_save_at,
+            "sponsor_save_count": history.save_count,
+            "sponsor_saves_checked_at": letter.dates.sponsor_saves_checked_at,
+            "supported": True,
+        }
+
     def add_reminder(self, letter_id: int, reminded_at: Optional[datetime], note: Optional[str], created_by: Optional[int]) -> LetterReminder:
         self.get_letter(letter_id)  # existence check
         reminder = LetterReminder(

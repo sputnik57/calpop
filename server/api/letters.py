@@ -23,6 +23,7 @@ from schemas.letter import (
     RedactedUploadRequest,
     RedactedUploadResult,
     SponsorVisitStatsOut,
+    SponsorSaveHistoryOut,
     UploadDestinationPreview,
     TranslateImageRequest,
     TranslateImageResult,
@@ -333,6 +334,21 @@ def check_letter_sponsor_visits(
     service = _service(db)
     try:
         return service.check_sponsor_visits(letter_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.post("/{letter_id}/journey/check-saves", response_model=SponsorSaveHistoryOut)
+def check_letter_sponsor_saves(
+    letter_id: int,
+    user_context: UserContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """On-demand read of the sponsor's saves on this letter's reply doc,
+    from its version history. See LetterService.check_sponsor_saves."""
+    service = _service(db)
+    try:
+        return service.check_sponsor_saves(letter_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
