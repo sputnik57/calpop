@@ -28,6 +28,7 @@ class AssignmentService:
     def _query(self):
         return self.db.query(Assignment).options(
             selectinload(Assignment.letter).selectinload(Letter.latest_version),
+            selectinload(Assignment.letter).selectinload(Letter.dates),
             selectinload(Assignment.prisoner),
             selectinload(Assignment.sponsor),
             selectinload(Assignment.active_submission)

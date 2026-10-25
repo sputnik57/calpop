@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Inbox as InboxIcon, MessageSquare, Clock, AlertCircle, CheckCircle2, FileText, ChevronRight, PenSquare, X, Loader2, Search } from 'lucide-react'
+import { Inbox as InboxIcon, Clock, AlertCircle, CheckCircle2, ChevronRight, PenSquare, X, Loader2, Search } from 'lucide-react'
 import { usePrisonerDirectory } from '../hooks/usePrisonerDirectory'
+import { STAGES, getLetterStage, shortDate } from '../utils/letterStage'
 
 function StartLetterModal({ onClose, onCreated }) {
     const { loading: loadingPrisoners, ensureLoaded, search: searchPrisoners } = usePrisonerDirectory()
@@ -137,13 +138,57 @@ export function Inbox() {
             })
     }, [])
 
-    const getStatusInfo = (status) => {
-        switch (status) {
-            case 'pending': return { icon: <Clock className="w-4 h-4" />, color: 'text-calpop-accent', label: 'In Queue' }
-            case 'replied': return { icon: <CheckCircle2 className="w-4 h-4" />, color: 'text-calpop-olive', label: 'Responded' }
-            case 'overdue': return { icon: <AlertCircle className="w-4 h-4" />, color: 'text-red-400', label: 'Overdue' }
-            default: return { icon: <MessageSquare className="w-4 h-4" />, color: 'text-calpop-navy', label: 'Assigned' }
-        }
+    // Stage comes from the Letter Journey dates (see utils/letterStage.js).
+    // Not-yet-mailed letters are "To do", earliest stage first so the ones
+    // furthest behind sit at the top; mailed letters go under "Done".
+    const withStage = assignments.map(task => ({ task, stage: getLetterStage(task.letter, task.active_submission) }))
+    const todo = withStage.filter(x => !x.stage.done).sort((a, b) => a.stage.index - b.stage.index)
+    const done = withStage.filter(x => x.stage.done)
+
+    const renderCard = ({ task, stage }) => {
+        const color = stage.done ? 'text-calpop-olive' : stage.key === 'to_write' || stage.key === 'informed' ? 'text-calpop-accent' : 'text-calpop-blue'
+        return (
+            <Link
+                key={task.id}
+                to={`/inbox/respond/${task.id}`}
+                className={`group bg-white hover:bg-calpop-panel p-5 rounded-xl border border-calpop-navy/15 hover:border-calpop-blue/50 transition-all shadow-lg flex items-center gap-6 ${stage.done ? 'opacity-70' : ''}`}
+            >
+                <div className={`p-3 rounded-lg bg-calpop-panel border border-calpop-navy/15 group-hover:border-calpop-blue/30 transition-colors ${color}`}>
+                    {stage.done ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1">
+                        <span className="font-mono text-xs text-calpop-navy/70 bg-calpop-panel px-2 py-0.5 rounded border border-calpop-navy/10">
+                            {task.prisoner?.cpid || 'ID PROTECTED'}
+                        </span>
+                        <span className="text-xs text-calpop-navy/70">•</span>
+                        <span className="text-xs text-calpop-navy/70 font-medium">{task.letter?.title || 'Untitled Intake'}</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-calpop-ink truncate group-hover:text-calpop-blue transition-colors">
+                        Letter from {task.prisoner?.first_name || 'Inmate'} {task.prisoner?.last_name || ''}
+                    </h3>
+                    {/* One segment per journey stage, filled up to this letter's stage */}
+                    <div className="flex gap-1 mt-3 max-w-md" title={STAGES.map(s => s.label).join(' → ')}>
+                        {STAGES.map((s, i) => (
+                            <div key={s.key} className={`h-1.5 flex-1 rounded-full ${i <= stage.index ? (stage.done ? 'bg-calpop-olive' : 'bg-calpop-blue') : 'bg-calpop-navy/15'}`} />
+                        ))}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-6">
+                    <div className="flex flex-col items-end text-right">
+                        <span className={`text-sm font-bold ${color}`}>
+                            {stage.label}{stage.date ? ` ${shortDate(stage.date)}` : ''}
+                        </span>
+                        {stage.waiting && (
+                            <span className="text-xs text-calpop-navy/70 mt-1">Next: {stage.waiting}</span>
+                        )}
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-calpop-navy/70 group-hover:text-calpop-blue transform group-hover:translate-x-1 transition-all" />
+                </div>
+            </Link>
+        )
     }
 
     if (loading) return <div className="text-center p-12 text-calpop-navy font-mono animate-pulse">Scanning Communications...</div>
@@ -168,7 +213,11 @@ export function Inbox() {
                     <div className="flex gap-4 text-xs font-mono">
                         <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-calpop-navy/15">
                             <span className="w-2 h-2 rounded-full bg-calpop-blue"></span>
-                            <span className="text-calpop-navy">{assignments.length} Tasks</span>
+                            <span className="text-calpop-navy">{todo.length} To do</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-calpop-navy/15">
+                            <span className="w-2 h-2 rounded-full bg-calpop-olive"></span>
+                            <span className="text-calpop-navy">{done.length} Done</span>
                         </div>
                     </div>
                 </div>
@@ -194,50 +243,19 @@ export function Inbox() {
                     <p className="text-calpop-navy/70 mt-1">All communications have been processed or assigned.</p>
                 </div>
             ) : (
-                <div className="grid gap-4">
-                    {assignments.map((task) => {
-                        const status = getStatusInfo(task.status || 'active')
-                        return (
-                            <Link
-                                key={task.id}
-                                to={`/inbox/respond/${task.id}`}
-                                className="group bg-white hover:bg-calpop-panel p-5 rounded-xl border border-calpop-navy/15 hover:border-calpop-blue/50 transition-all shadow-lg flex items-center gap-6"
-                            >
-                                <div className={`p-3 rounded-lg bg-calpop-panel border border-calpop-navy/15 group-hover:border-calpop-blue/30 transition-colors ${status.color}`}>
-                                    {status.icon}
-                                </div>
-
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <span className="font-mono text-xs text-calpop-navy/70 bg-calpop-panel px-2 py-0.5 rounded border border-calpop-navy/10">
-                                            {task.prisoner?.cpid || 'ID PROTECTED'}
-                                        </span>
-                                        <span className="text-xs text-calpop-navy/70">•</span>
-                                        <span className="text-xs text-calpop-navy/70 font-medium">Updated 2d ago</span>
-                                    </div>
-                                    <h3 className="text-lg font-bold text-calpop-ink truncate group-hover:text-calpop-blue transition-colors">
-                                        Letter from {task.prisoner?.first_name || 'Inmate'} {task.prisoner?.last_name || ''}
-                                    </h3>
-                                    <div className="flex items-center gap-4 mt-2">
-                                        <div className="flex items-center gap-1.5 text-xs text-calpop-navy">
-                                            <FileText className="w-3 h-3" />
-                                            <span>{task.letter?.title || 'Untitled Intake'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-6">
-                                    <div className="hidden md:flex flex-col items-end">
-                                        <span className={`text-xs font-bold uppercase tracking-wider ${status.color}`}>
-                                            {status.label}
-                                        </span>
-                                        <span className="text-[10px] text-calpop-navy/70 mt-1 uppercase tracking-tight">Status</span>
-                                    </div>
-                                    <ChevronRight className="w-5 h-5 text-calpop-navy/70 group-hover:text-calpop-blue transform group-hover:translate-x-1 transition-all" />
-                                </div>
-                            </Link>
-                        )
-                    })}
+                <div className="space-y-8">
+                    {todo.length > 0 && (
+                        <section className="space-y-4">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-calpop-navy">To do ({todo.length})</h3>
+                            <div className="grid gap-4">{todo.map(renderCard)}</div>
+                        </section>
+                    )}
+                    {done.length > 0 && (
+                        <section className="space-y-4">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-calpop-olive">Done ({done.length})</h3>
+                            <div className="grid gap-4">{done.map(renderCard)}</div>
+                        </section>
+                    )}
                 </div>
             )}
         </div>
