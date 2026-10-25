@@ -786,7 +786,7 @@ export function TranslateLetter() {
                                 </button>
                                 {savedToLibrary && (
                                     <span className="text-xs text-calpop-olive font-bold ml-1">
-                                        Saved as {savedToLibrary.cpid}/{savedToLibrary.filename}
+                                        Saved as {savedToLibrary.filename}
                                         {savedToLibrary.overlayCount > 0 && ` (+ ${savedToLibrary.overlayCount} overlay image${savedToLibrary.overlayCount > 1 ? 's' : ''})`}
                                     </span>
                                 )}

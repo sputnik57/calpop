@@ -681,6 +681,9 @@ def save_translation_docx_to_library(
     pages = [p.dict() for p in payload.pages]
     docx_bytes = build_translation_review_docx(pages, personal_use=payload.personal_use)
 
+    # Everything goes in the translations folder itself, not a folder per
+    # person (Rey, 25Oct2026): the person's CPID is part of the file name
+    # when one is given, and the Translations tab shows every file.
     if payload.cpid:
         safe_cpid = re.sub(r"[^A-Za-z0-9_-]", "", payload.cpid)
         letters_received_count = (
@@ -689,12 +692,17 @@ def save_translation_docx_to_library(
         date_str = datetime.now().strftime("%Y-%m-%d")
         stem = f"{safe_cpid}_{date_str}_in_{letters_received_count:03d}"
     else:
-        safe_cpid = "unfiled"
+        safe_cpid = None
         stem = re.sub(r"[^A-Za-z0-9_-]", "_", payload.title) if payload.title else datetime.now().strftime("translation_%Y-%m-%d_%H-%M-%S")
 
+    # One shared folder means two saves could share a name (same person,
+    # same day, same count); never overwrite an earlier one.
+    dest_dir = root
+    n = 1
+    while (dest_dir / f"{stem}.docx").exists():
+        n += 1
+        stem = f"{stem.rsplit('_v', 1)[0]}_v{n}"
     filename = f"{stem}.docx"
-    dest_dir = root / safe_cpid
-    dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / filename
     dest_path.write_bytes(docx_bytes)
 

@@ -264,3 +264,50 @@ def translate_library_document_to_spanish(
         "translated": result["translated"],
         "skipped": result["skipped"],
     }
+
+
+class RenameRequest(BaseModel):
+    path: str = Field(..., description="Full path of the file, as returned by /list")
+    new_name: str = Field(..., description="New file name; the original extension is kept if omitted")
+
+
+@router.post("/rename", response_model=dict)
+def rename_translation_file(payload: RenameRequest, user_context=Depends(require_admin)):
+    """Rename a saved translation (added 25Oct2026), e.g. to put the person's
+    CPID in the name. Only files directly in the Translations folder; the
+    overlay images saved with a translation (<name>_overlay_pN.png) are
+    renamed with it so they stay together."""
+    import re
+    root = settings.library_translations_root
+    if not root:
+        raise HTTPException(status_code=503, detail="Translations library root is not configured")
+    root = root.resolve()
+
+    src = Path(payload.path).resolve()
+    if src.parent != root or not src.is_file():
+        raise HTTPException(status_code=403, detail="Only files in the Translations folder can be renamed")
+
+    new_name = payload.new_name.strip()
+    if not new_name or "/" in new_name or "\\" in new_name or new_name.startswith("."):
+        raise HTTPException(status_code=400, detail="Enter a file name only, with no folders")
+    new_name = re.sub(r"[^A-Za-z0-9 _.()+-]", "_", new_name)
+    if not Path(new_name).suffix:
+        new_name += src.suffix
+    elif Path(new_name).suffix.lower() != src.suffix.lower():
+        raise HTTPException(status_code=400, detail=f"The file must stay a {src.suffix} file")
+
+    dest = root / new_name
+    if dest == src:
+        return {"renamed": False, "name": src.name, "path": str(src)}
+    if dest.exists():
+        raise HTTPException(status_code=409, detail=f"A file named {new_name} already exists")
+
+    old_stem, new_stem = src.stem, dest.stem
+    overlays = sorted(root.glob(f"{old_stem}_overlay_p*.png"))
+    if any((root / (new_stem + o.name[len(old_stem):])).exists() for o in overlays):
+        raise HTTPException(status_code=409, detail="Its overlay images would collide with existing files")
+
+    src.rename(dest)
+    for o in overlays:
+        o.rename(root / (new_stem + o.name[len(old_stem):]))
+    return {"renamed": True, "name": dest.name, "path": str(dest), "overlays_renamed": len(overlays)}

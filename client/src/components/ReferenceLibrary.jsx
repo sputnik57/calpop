@@ -77,7 +77,9 @@ const ReferenceLibrary = ({ onInsert, initialCpid, ocrText, workbenchState }) =>
     const activeCpid = getBestCpid();
 
     useEffect(() => {
-        if ((category === 'history' || category === 'translations') && activeCpid) {
+        // Only History narrows to the person automatically; Translations
+        // shows every saved file (Rey, 25Oct2026).
+        if (category === 'history' && activeCpid) {
             setFilter(activeCpid);
         } else {
             setFilter('');
@@ -248,6 +250,35 @@ const ReferenceLibrary = ({ onInsert, initialCpid, ocrText, workbenchState }) =>
         if (activeQueuePath === path) setActiveQueuePath(null)
     }
 
+    // Rename a saved translation, e.g. to add the person's CPID to its name
+    // (25Oct2026). The box opens with the CPID shown above already in front.
+    const [renaming, setRenaming] = useState(null) // { path, value }
+    const [renameError, setRenameError] = useState(null)
+    const startRename = (e, file) => {
+        e.stopPropagation()
+        const cpid = (manualCpid !== null ? manualCpid : activeCpid || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+        const stem = file.name.replace(/\.[^.]+$/, '')
+        setRenameError(null)
+        setRenaming({ path: file.path, value: cpid && !stem.toUpperCase().startsWith(cpid) ? `${cpid}_${stem}` : stem })
+    }
+    const saveRename = async (file) => {
+        try {
+            const res = await fetch('/api/library/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ path: file.path, new_name: renaming.value }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(data.detail || `Could not rename (${res.status})`)
+            closeDocument(file.path) // an open copy still points at the old name
+            setRenaming(null)
+            fetchFiles()
+        } catch (err) {
+            setRenameError(err.message)
+        }
+    }
+
     const removeFromQueue = (e, path) => {
         e.stopPropagation()
         closeDocument(path)
@@ -317,7 +348,7 @@ const ReferenceLibrary = ({ onInsert, initialCpid, ocrText, workbenchState }) =>
                         title="ID used to filter the History tab"
                     />
                 </div>
-                {(category === 'history' || category === 'translations') && <span className="text-[10px] text-calpop-navy/70 font-mono italic">Exchange Matching Active</span>}
+                {category === 'history' && <span className="text-[10px] text-calpop-navy/70 font-mono italic">Exchange Matching Active</span>}
             </div>
 
             {/* WORKBENCH TAB BAR */}
@@ -535,9 +566,36 @@ const ReferenceLibrary = ({ onInsert, initialCpid, ocrText, workbenchState }) =>
                                             {file.is_dir ? <Folder size={14} /> : <FileText size={14} />}
                                         </div>
 
-                                        <div className="truncate text-xs text-calpop-navy font-medium group-hover:text-calpop-ink transition-colors max-w-[250px] shrink-0">
-                                            {file.name}
-                                        </div>
+                                        {renaming?.path === file.path ? (
+                                            <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        autoFocus
+                                                        value={renaming.value}
+                                                        onChange={(e) => setRenaming({ ...renaming, value: e.target.value })}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter') saveRename(file); if (e.key === 'Escape') setRenaming(null) }}
+                                                        className="w-64 bg-white border border-calpop-blue/50 rounded px-2 py-1 text-xs font-mono text-calpop-ink outline-none"
+                                                    />
+                                                    <span className="text-[10px] text-calpop-navy/70 font-mono">.{file.extension}</span>
+                                                    <button onClick={() => saveRename(file)} className="px-2 py-1 rounded bg-calpop-blue text-white text-[10px] font-bold">Save</button>
+                                                    <button onClick={() => setRenaming(null)} className="px-2 py-1 rounded bg-calpop-panel text-calpop-navy text-[10px] font-bold">Cancel</button>
+                                                </div>
+                                                {renameError && <div className="text-[10px] text-red-600">{renameError}</div>}
+                                            </div>
+                                        ) : (
+                                            <div className="truncate text-xs text-calpop-navy font-medium group-hover:text-calpop-ink transition-colors max-w-[250px] shrink-0">
+                                                {file.name}
+                                            </div>
+                                        )}
+
+                                        {category === 'translations' && !file.is_dir && renaming?.path !== file.path && (
+                                            <button
+                                                onClick={(e) => startRename(e, file)}
+                                                className="p-1 px-2 opacity-0 group-hover:opacity-100 bg-calpop-panel text-calpop-navy rounded text-[10px] font-bold border border-calpop-navy/15 shrink-0 ml-2"
+                                            >
+                                                Rename
+                                            </button>
+                                        )}
 
                                         {!file.is_dir && (
                                             <button
